@@ -9,9 +9,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.path as pth
 from matplotlib.patches import PathPatch, Polygon
+from matplotlib.lines import Line2D
 from scipy import interpolate
 
 import cyclistsocialforce.config as cfg
+from cyclistsocialforce.parameters import RoadElementParameters
 from cyclistsocialforce.trajectory import generateSplinePrototype
 from cyclistsocialforce.utils import (
     angleDifference,
@@ -28,10 +30,34 @@ if cfg.has_sumo:
         import traci
 
 
+class RoadSegmentCollection:
+    def __init__(self, segs):
+        self.segs = segs
+
+    def calcRepulsiveForce(self, x, y):
+        s = x.shape
+        x = x.flatten()
+        y = y.flatten()
+
+        Fx = np.zeros_like(x)
+        Fy = np.zeros_like(y)
+
+        for seg in self.segs:
+            Fx_s, Fy_s = seg.calcRepulsiveForce(x, y)
+            Fx += Fx_s
+            Fy += Fy_s
+        return np.reshape(Fx, s), np.reshape(Fy, s)
+
+    def draw_element(self, ax):
+        for seg in self.segs:
+            seg.draw_element(ax)
+
+
 class RoadSegment:
-    def __init__(self, x0, beta0, width, ds=0.1):
+    def __init__(self, x0, width, ds=0.1, params=RoadElementParameters()):
+        self.params = RoadElementParameters()
         self.x0 = x0
-        self.beta0 = beta0
+        self.x1 = x0
         self.width = width
         self.edges = []
         self.ds = ds
@@ -51,58 +77,123 @@ class RoadSegment:
 
         return np.reshape(Fx, s), np.reshape(Fy, s)
 
+    def draw_element(self, ax):
+        ax.add_patch(
+            Polygon(
+                np.r_[
+                    self.edges[0].vertices, np.flip(self.edges[1].vertices, 0)
+                ],
+                closed=True,
+                edgecolor=self.params.roadsurface_color,
+                facecolor=self.params.roadsurface_color,
+                linewidth=self.params.roadedge_linewidth * 2 + 1,
+            )
+        )
+        for e in self.edges:
+            ax.plot(
+                e.vertices[:, 0],
+                e.vertices[:, 1],
+                color=self.params.roadedge_color,
+                linewidth=self.params.roadedge_linewidth,
+                zorder=10,
+            )
+
 
 class StraightRoadSegment(RoadSegment):
-    def __init__(self, x0, beta0, width, length):
-        RoadSegment.__init__(self, x0, beta0, width)
+    def __init__(
+        self, x0, width, length, ds=0.1, params=RoadElementParameters()
+    ):
+        RoadSegment.__init__(self, x0, width, ds, params)
         self.length = length
 
         # edge coordinates
-        x = np.arange(0, length, self.ds)
+        x = np.arange(0, length + self.ds, self.ds)
         yr = -(width / 2) * np.ones_like(x)
         yl = (width / 2) * np.ones_like(x)
 
         # rotation matrix
         R = np.array(
-            [[np.cos(beta0), -np.sin(beta0)], [np.sin(beta0), np.cos(beta0)]]
+            [[np.cos(x0[2]), -np.sin(x0[2])], [np.sin(x0[2]), np.cos(x0[2])]]
         )
-        
+
         # edge vcertices
-        vert_r = R @ np.c_[x, yr].T + np.reshape(x0, (2, 1))
-        vert_l = R @ np.c_[x, yl].T + np.reshape(x0, (2, 1))
+        vert_r = R @ np.c_[x, yr].T + np.reshape(x0[:2], (2, 1))
+        vert_l = R @ np.c_[x, yl].T + np.reshape(x0[:2], (2, 1))
 
         self.edges.append(RoadEdge(vert_r.T))
         self.edges.append(RoadEdge(vert_l.T))
 
-        self.x1 = x0 + self.length * np.array([np.cos(beta0), np.sin(beta0)])
+        self.x1 = np.zeros_like(x0)
+        self.x1[:2] = x0[:2] + self.length * np.array(
+            [np.cos(x0[2]), np.sin(x0[2])]
+        )
+        self.x1[2] = x0[2]
+
 
 class CurvedRoadSegment(RoadSegment):
-    def __init__(self, x0, beta0, width, radius, angle, direction):
-        RoadSegment.__init__(self, x0, beta0, width)
-        self.length = length
+    def __init__(
+        self,
+        x0,
+        width,
+        radius,
+        angle,
+        direction,
+        ds=0.1,
+        params=RoadElementParameters(),
+    ):
+        RoadSegment.__init__(self, x0, width)
+        self.length = radius * angle
+        self.radius = radius
+        self.angle = angle
+        self.direction = direction
 
-        #number of points
-        npoints_r = 
-        npoints_l = 
-        
+        dir_flag = -1 * (direction == "right") + 1 * (direction == "left")
+        assert (
+            dir_flag == -1 or dir_flag == 1
+        ), f'direction has to be "left" or "right, instead it was {direction}'
+        print(dir_flag)
+
+        # correct x0 so that x0[2] = 0 results in a curve starting in x-dir
+        beta = x0[2] - np.pi / 2
+
+        # radii
+        radius_r = radius + dir_flag * width / 2
+        radius_l = radius - dir_flag * width / 2
+
+        # number of points
+        npoints_r = int(radius_r * angle / self.ds)
+        npoints_l = int(radius_l * angle / self.ds)
+
+        # angle grid
+        angle_r = np.linspace(0, angle, npoints_r)
+        angle_l = np.linspace(0, angle, npoints_l)
+
         # edge coordinates
-        x = np.arange(0, length, self.ds)
-        yr = -(width / 2) * np.ones_like(x)
-        yl = (width / 2) * np.ones_like(x)
+        x_r = dir_flag * (radius_r * np.cos(angle_r) - radius)
+        y_r = radius_r * np.sin(angle_r)
+
+        x_l = dir_flag * (radius_l * np.cos(angle_l) - radius)
+        y_l = radius_l * np.sin(angle_l)
+
+        x1 = dir_flag * (radius * np.cos(angle) - radius)
+        y1 = radius * np.sin(angle)
 
         # rotation matrix
         R = np.array(
-            [[np.cos(beta0), -np.sin(beta0)], [np.sin(beta0), np.cos(beta0)]]
+            [[np.cos(beta), -np.sin(beta)], [np.sin(beta), np.cos(beta)]]
         )
-        
+
         # edge vcertices
-        vert_r = R @ np.c_[x, yr].T + np.reshape(x0, (2, 1))
-        vert_l = R @ np.c_[x, yl].T + np.reshape(x0, (2, 1))
+        vert_r = R @ np.c_[x_r, y_r].T + np.reshape(x0[:2], (2, 1))
+        vert_l = R @ np.c_[x_l, y_l].T + np.reshape(x0[:2], (2, 1))
 
         self.edges.append(RoadEdge(vert_r.T))
         self.edges.append(RoadEdge(vert_l.T))
 
-        self.x1 = x0 + self.length * np.array([np.cos(beta0), np.sin(beta0)])
+        self.x1 = np.zeros((3))
+        self.x1[:2] = (R @ np.c_[x1, y1].T).flatten() + x0[:2]
+        self.x1[2] = x0[2] + dir_flag * (angle)
+
 
 class RoadEdge:
     """
@@ -116,8 +207,8 @@ class RoadEdge:
         self.vertices = vertices
 
     def calcRepulsiveForce(self, x, y):
-        F0 = 0.01
-        decay = -2.5
+        F0 = 0.3
+        decay = -1.5
 
         s = x.shape
         x = x.flatten()
@@ -136,6 +227,14 @@ class RoadEdge:
 
         return np.reshape(Fx, s), np.reshape(Fy, s)
 
+    def draw_element(self, ax):
+        patch = Polygon(
+            self.vertices,
+            closed=False,
+            edgecolor="black",
+        )
+        self.ax.add_patch(patch)
+
 
 class SocialForceIntersection:
     """
@@ -152,7 +251,7 @@ class SocialForceIntersection:
         axes=None,
         activate_sumo_cosimulation=False,
         net=None,
-        roadEdges=[],
+        road_elements=[],
     ):
         """
         Create a SocialForceIntersection.
@@ -183,9 +282,10 @@ class SocialForceIntersection:
         net : sumolib.net.Net, optional
             Sumolib network object holding information on the in-/out-edges and
             internal lanes of the intersection. The default is None.
-        roadEdges : list(cyclistsocialforce.intersection.RoadEdge), optional
-            List of road edges of this intersection. May be empty.
-            The default is [].
+        road_elements : list(), optional
+            List of road elements of this intersection. May be empty.
+            The list may contain RoadEdge, RoadSegment or RoadSegmentCollection
+            objects. The default is [].
 
         Returns
         -------
@@ -283,7 +383,7 @@ class SocialForceIntersection:
                 )
 
         # List of additional road edges
-        self.edges = roadEdges
+        self.road_elements = road_elements
 
         self.ax = axes
 
@@ -291,9 +391,8 @@ class SocialForceIntersection:
             assert self.ax is not None, "Provide axes for animation!"
             self.ghandles = []
             self.prepareAxes()
-            for e in self.edges:
-                patch = Polygon(e.vertices, closed=False, edgecolor="black")
-                self.ax.add_patch(patch)
+            for e in self.road_elements:
+                e.draw_element(self.ax)
             if self.activate_sumo_cosimulation:
                 patch = PathPatch(
                     self.shape, facecolor="black", edgecolor="black"
@@ -327,7 +426,7 @@ class SocialForceIntersection:
         return ruids_entred, ruids_exited
 
     def addEdge(self, roadEdge):
-        self.edges.append(roadEdge)
+        self.road_elements.append(roadEdge)
 
     def add_road_user(self, user):
         """Add a single road user to the current intersection.
@@ -719,7 +818,7 @@ class SocialForceIntersection:
             Fy = Fdesty
 
         # Add edge forces
-        for e in self.edges:
+        for e in self.road_elements:
             Fxe, Fye = e.calcRepulsiveForce(self.vehicleX, self.vehicleY)
             Fx += Fxe.flatten()
             Fy += Fye.flatten()
