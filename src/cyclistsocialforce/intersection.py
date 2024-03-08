@@ -28,6 +28,82 @@ if cfg.has_sumo:
         import traci
 
 
+class RoadSegment:
+    def __init__(self, x0, beta0, width, ds=0.1):
+        self.x0 = x0
+        self.beta0 = beta0
+        self.width = width
+        self.edges = []
+        self.ds = ds
+
+    def calcRepulsiveForce(self, x, y):
+        s = x.shape
+        x = x.flatten()
+        y = y.flatten()
+
+        Fx = np.zeros_like(x)
+        Fy = np.zeros_like(y)
+
+        for e in self.edges:
+            Fx_e, Fy_e = e.calcRepulsiveForce(x, y)
+            Fx += Fx_e
+            Fy += Fy_e
+
+        return np.reshape(Fx, s), np.reshape(Fy, s)
+
+
+class StraightRoadSegment(RoadSegment):
+    def __init__(self, x0, beta0, width, length):
+        RoadSegment.__init__(self, x0, beta0, width)
+        self.length = length
+
+        # edge coordinates
+        x = np.arange(0, length, self.ds)
+        yr = -(width / 2) * np.ones_like(x)
+        yl = (width / 2) * np.ones_like(x)
+
+        # rotation matrix
+        R = np.array(
+            [[np.cos(beta0), -np.sin(beta0)], [np.sin(beta0), np.cos(beta0)]]
+        )
+        
+        # edge vcertices
+        vert_r = R @ np.c_[x, yr].T + np.reshape(x0, (2, 1))
+        vert_l = R @ np.c_[x, yl].T + np.reshape(x0, (2, 1))
+
+        self.edges.append(RoadEdge(vert_r.T))
+        self.edges.append(RoadEdge(vert_l.T))
+
+        self.x1 = x0 + self.length * np.array([np.cos(beta0), np.sin(beta0)])
+
+class CurvedRoadSegment(RoadSegment):
+    def __init__(self, x0, beta0, width, radius, angle, direction):
+        RoadSegment.__init__(self, x0, beta0, width)
+        self.length = length
+
+        #number of points
+        npoints_r = 
+        npoints_l = 
+        
+        # edge coordinates
+        x = np.arange(0, length, self.ds)
+        yr = -(width / 2) * np.ones_like(x)
+        yl = (width / 2) * np.ones_like(x)
+
+        # rotation matrix
+        R = np.array(
+            [[np.cos(beta0), -np.sin(beta0)], [np.sin(beta0), np.cos(beta0)]]
+        )
+        
+        # edge vcertices
+        vert_r = R @ np.c_[x, yr].T + np.reshape(x0, (2, 1))
+        vert_l = R @ np.c_[x, yl].T + np.reshape(x0, (2, 1))
+
+        self.edges.append(RoadEdge(vert_r.T))
+        self.edges.append(RoadEdge(vert_l.T))
+
+        self.x1 = x0 + self.length * np.array([np.cos(beta0), np.sin(beta0)])
+
 class RoadEdge:
     """
     Road edges that exert a repulisive force on road users.
@@ -40,7 +116,8 @@ class RoadEdge:
         self.vertices = vertices
 
     def calcRepulsiveForce(self, x, y):
-        F0 = 0.1
+        F0 = 0.01
+        decay = -2.5
 
         s = x.shape
         x = x.flatten()
@@ -53,7 +130,7 @@ class RoadEdge:
         erx = (self.vertices[:, 0][np.newaxis, :] - x[:, np.newaxis]) / r
         ery = (self.vertices[:, 1][np.newaxis, :] - y[:, np.newaxis]) / r
 
-        F = -F0 / r**3
+        F = -F0 * r**decay
         Fx = np.sum(F * erx, axis=1)
         Fy = np.sum(F * ery, axis=1)
 
