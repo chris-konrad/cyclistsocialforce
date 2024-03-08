@@ -11,6 +11,19 @@ import numpy as np
 import control as ct
 
 
+class RoadElementParameters:
+    def __init__(
+        self,
+        roadsurface_color=(0.8, 0.8, 0.8),
+        roadedge_color="white",
+        roadedge_linewidth=1,
+    ):
+        self.roadsurface_color = roadsurface_color
+
+        self.roadedge_color = roadedge_color
+        self.roadedge_linewidth = roadedge_linewidth
+
+
 class VehicleParameters:
     """Calculate and update the parameters of a vehicle.
 
