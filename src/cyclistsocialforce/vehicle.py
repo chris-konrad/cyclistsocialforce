@@ -98,7 +98,6 @@ class Vehicle:
         # vehicle state (x, y, theta, v, delta)
         self.s = np.array(s0, dtype=float)
         self.s[2] = limitAngle(s0[2])
-        self.s_names = ("x[m]", "y[m]", "theta[rad]", "v[m/s]", "delta[rad]")
 
         # trajectory (list of past states)
         self.traj = np.zeros((5, int(30 / self.params.t_s)))
@@ -541,6 +540,8 @@ class Vehicle:
             fig, axes = plt.subplots(np.sum(states_to_plot), 1, sharex=True)
             for ax, name in zip(axes, np.array(self.s_names)[states_to_plot]):
                 ax.set_ylabel(name)
+                if "deg" in name:
+                    ax.set_ylim(-180, 180)
             axes[-1].set_xlabel("t[s]")
             axes[-1].legend()
 
@@ -561,7 +562,10 @@ class Vehicle:
             plot_kw["label"] = self.id
 
         for ax, i_s in zip(axes, np.cumsum(states_to_plot)):
-            ax.plot(self.traj[i_s - 1, :i_end], **plot_kw)
+            data_to_plot = self.traj[i_s - 1, :i_end]
+            if "deg" in name:
+                data_to_plot = 180 * data_to_plot / np.pi
+            ax.plot(data_to_plot, **plot_kw)
 
         if axes[-1].get_legend() is not None:
             axes[-1].get_legend().remove()
@@ -1689,10 +1693,10 @@ class InvPendulumBicycle(TwoDBicycle):
         self.s_names = (
             "x[m]",
             "y[m]",
-            "phi[rad]",
+            "phi[deg]",
             "v[m/s]",
-            "delta[rad]",
-            "theta[rad]",
+            "delta[deg]",
+            "theta[deg]",
         )
 
         # trajectory (list of past states)
@@ -1816,9 +1820,9 @@ class InvPendulumBicycle(TwoDBicycle):
             squeeze=False,
         )
         self.x = x[:, 1]
-        psi = psi[0][1]
-        delta = x[0][1]
-        theta = x[2][1]
+        psi = limitAngle(psi[0][1])
+        delta = limitAngle(x[0][1])
+        theta = limitAngle(x[2][1])
 
         return (psi, delta, theta)
 
