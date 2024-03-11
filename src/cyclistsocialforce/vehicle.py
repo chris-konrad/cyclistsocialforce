@@ -1711,10 +1711,8 @@ class InvPendulumBicycle(TwoDBicycle):
         else:
             self.zrid[0] = True
 
-    def init_dynamics_statespace(self):
+    def get_openloop_statespace_matrices(self):
         K, K_tau_2, tau_3 = self.params.timevarying_combined_params(self.s[3])
-        K_x, K_u = self.params.fullstate_feedback_gains()
-
         A = np.array(
             [
                 [0, 1, 0, 0, 0],
@@ -1743,19 +1741,24 @@ class InvPendulumBicycle(TwoDBicycle):
 
         D = 0
 
+        return A, B, C, D
+
+    def init_dynamics_statespace(self):
+        K_x, K_u = self.params.fullstate_feedback_gains()
+        A, B, C, D = self.get_openloop_statespace_matrices()
+
         self.dynamics = ct.ss(A - B[:, np.newaxis] @ K_x, K_u * B, C, D)
 
     def update_dynamics(self):
-        A = self.dynamics.A
+        A, B, C, D = self.get_openloop_statespace_matrices()
         K_x, K_u = self.params.fullstate_feedback_gains()
-
         K, K_tau_2, tau_3 = self.params.timevarying_combined_params(self.s[3])
 
         A[3, 0] = -K / self.params.tau_1_squared
         A[3, 1] = -K_tau_2 / self.params.tau_1_squared
         A[4, 0] = 1 / tau_3
 
-        self.dynamics.A = A - self.dynamics.B @ K_x
+        self.dynamics.A = A - B[:, np.newaxis] @ K_x
 
     def speed_control(self, vd):
         """Calculate the acceleration as a reaction to the current social
@@ -1814,8 +1817,8 @@ class InvPendulumBicycle(TwoDBicycle):
         )
         self.x = x[:, 1]
         psi = psi[0][1]
-        delta = x[2][1]
-        theta = x[3][1]
+        delta = x[0][1]
+        theta = x[2][1]
 
         return (psi, delta, theta)
 
