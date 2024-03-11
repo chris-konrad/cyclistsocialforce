@@ -207,7 +207,7 @@ class RoadEdge:
         self.vertices = vertices
 
     def calcRepulsiveForce(self, x, y):
-        F0 = 0.3
+        F0 = 0.2
         decay = -1.5
 
         s = x.shape

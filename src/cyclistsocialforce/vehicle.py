@@ -12,7 +12,7 @@ Hierarchy:
 @author: Christoph Schmidt
 """
 import numpy as np
-
+import control as ct
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from scipy import interpolate
@@ -1699,20 +1699,9 @@ class InvPendulumBicycle(TwoDBicycle):
         self.traj = np.zeros((6, int(30 / self.params.t_s)))
         self.traj[:, 0] = s0
 
-        # Model dynamics in Z domain.
-        (
-            ab_r1,
-            ab_r2_delta,
-            ab_theta,
-            ab_psi,
-        ) = self.params.update_dynamic_params(self.s[3])
-
-        self.dynamics_r1 = DiffEquation(ab_r1)
-        self.dynamics_r2_delta = DiffEquation(
-            ab_r2_delta, th=self.params.delta_max
-        )
-        self.dynamics_theta = DiffEquation(ab_theta)
-        self.dynamics_psi = DiffEquation(ab_psi, y=s0[2] * np.ones(1))
+        # Model dynamics as a state-space system
+        self.init_dynamics_statespace()
+        self.x = np.array([[self.s[4]], [0], [self.s[5]], [0], [self.s[2]]])
 
         # state machine
         # TODO: This needs to be tested and improved
@@ -1721,6 +1710,52 @@ class InvPendulumBicycle(TwoDBicycle):
             self.zrid[1] = True
         else:
             self.zrid[0] = True
+
+    def init_dynamics_statespace(self):
+        K, K_tau_2, tau_3 = self.params.timevarying_combined_params(self.s[3])
+        K_x, K_u = self.params.fullstate_feedback_gains()
+
+        A = np.array(
+            [
+                [0, 1, 0, 0, 0],
+                [
+                    0,
+                    -self.params.c_steer / self.params.i_steer_vertvert,
+                    0,
+                    0,
+                    0,
+                ],
+                [0, 0, 0, 1, 0],
+                [
+                    -K / self.params.tau_1_squared,
+                    -K_tau_2 / self.params.tau_1_squared,
+                    1 / self.params.tau_1_squared,
+                    0,
+                    0.0,
+                ],
+                [1 / tau_3, 0, 0, 0, 0],
+            ]
+        )
+
+        B = np.array([0, 1 / self.params.i_steer_vertvert, 0, 0, 0])
+
+        C = np.array([0, 0, 0, 0, 1])
+
+        D = 0
+
+        self.dynamics = ct.ss(A - B[:, np.newaxis] @ K_x, K_u * B, C, D)
+
+    def update_dynamics(self):
+        A = self.dynamics.A
+        K_x, K_u = self.params.fullstate_feedback_gains()
+
+        K, K_tau_2, tau_3 = self.params.timevarying_combined_params(self.s[3])
+
+        A[3, 0] = -K / self.params.tau_1_squared
+        A[3, 1] = -K_tau_2 / self.params.tau_1_squared
+        A[4, 0] = 1 / tau_3
+
+        self.dynamics.A = A - self.dynamics.B @ K_x
 
     def speed_control(self, vd):
         """Calculate the acceleration as a reaction to the current social
@@ -1762,27 +1797,25 @@ class InvPendulumBicycle(TwoDBicycle):
 
         """
 
-        # update LTI parameters with current speed
-        (
-            ab_r1,
-            ab_r2_delta,
-            ab_theta,
-            ab_psi,
-        ) = self.params.update_dynamic_params(self.s[3])
-
-        self.dynamics_r1.update(ab_r1)
-        self.dynamics_r2_delta.update(ab_r2_delta)
-        self.dynamics_theta.update(ab_theta)
-        self.dynamics_psi.update(ab_psi)
+        # update statespace parameters with current speed
+        self.update_dynamics()
 
         # absolute force angle
         psi_d = np.arctan2(Fy, Fx)
 
         # calculate steer angle for stabilization
-        theta_d = self.dynamics_r1.step(angleDifference(self.s[2], psi_d))
-        delta = self.dynamics_r2_delta.step(theta_d - self.s[5])
-        theta = self.dynamics_theta.step(delta)
-        psi = limitAngle(self.dynamics_psi.step(delta))
+        t, psi, x = ct.forced_response(
+            self.dynamics,
+            T=np.array([0, self.params.t_s]),
+            X0=self.x,
+            U=np.ones(2) * psi_d,
+            return_x=True,
+            squeeze=False,
+        )
+        self.x = x[:, 1]
+        psi = psi[0][1]
+        delta = x[2][1]
+        theta = x[3][1]
 
         return (psi, delta, theta)
 
@@ -1842,6 +1875,7 @@ class InvPendulumBicycle(TwoDBicycle):
                 self.s[[2, 4, 5]] = self.step_yaw(Fx, Fy)
             else:
                 self.s[3] = self.params.v_max_walk
+                self.s[5] = 0
 
                 # for walking, use the 2D bicycle dynamics
                 a, odelta = super().control(Fx, Fy)
@@ -1849,13 +1883,9 @@ class InvPendulumBicycle(TwoDBicycle):
 
                 # pass bicycle states to the inverted pendulum dynamics even
                 # while walking to prevent errors in the transition.
-                self.dynamics_psi.setOutput(self.s[2])
-                self.dynamics_psi.setInput(self.s[4])
-                self.dynamics_r2_delta.setOutput(self.s[4])
-                self.dynamics_r2_delta.setInput(0)
-
-                # bicycle is upright.
-                self.s[5] = 0
+                self.x = np.array(
+                    [[self.s[4]], [0], [self.s[5]], [0], [self.s[2]]]
+                )
 
                 # print(f"{self.id} is walking.")
 

@@ -1148,51 +1148,17 @@ class InvPendulumBicycleParameters(BicycleParameters):
 
         K_tau_2 = (v * self.l_2) / (self.g * (self.l))
         K = (v**2) / (self.g * (self.l))
+        tau_3 = self.l / v
 
-        return K, K_tau_2
+        return K, K_tau_2, tau_3
 
-    def r1_adaptive_gain(self, v=None):
-        """Calculate the constant PID gains for the controler R1 of the yaw
-        angle control.
+    def fullstate_feedback_gains(self):
+        K_x = np.array(
+            [[6.26092881, -48.635, -6.92845026, -2.25215286, -2.15918001]]
+        )
+        K_u = -2.1591800063357907
 
-        Parameters
-        ----------
-        v : float
-            Does nothing. Kept for compatibility. Default is None
-
-        Returns
-        -------
-        K : tuple[float, float, float]
-            PID gains given as (Kp, Ki, Kd).
-
-        Changelog
-        ---------
-
-        With 1.1.1, this function does not return adaptive gains anymore.
-        Instead, the Kp and Ki gains are static. This relates to the
-        changes made during the review process of the corresponding paper.
-
-        """
-
-        return (self.k_p_r1, self.k_i0_r1, 0.0)
-
-    def r2_adaptive_gain(self, v: float) -> tuple[float, float, float]:
-        """Calculate the adaptive PID gains for the controler R2 of the lean/
-        steer angle control.
-
-        Parameters
-        ----------
-        v : float
-            Current bicycle speed.
-
-        Returns
-        -------
-        K : tuple[float, float, float]
-            PID gains given as (Kp, Ki, Kd).
-
-        """
-
-        return (0, 0, self.k_d0_r2 / (v + self.k_d1_r2))
+        return K_x, K_u
 
     def update_dynamic_params(
         self, v: float
