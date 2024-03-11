@@ -660,6 +660,7 @@ class InvPendulumBicycleParameters(BicycleParameters):
         v_max_walk: float = 1.5,
         delta_max_walk: tuple = 0.174,
         # repulsive force field parameters
+        f_0: float = 7.0,
         e_0: float = 0.995,
         e_1: float = 0.7,
         sigma_0: float = 3.0,
@@ -759,6 +760,9 @@ class InvPendulumBicycleParameters(BicycleParameters):
             Maximum steer angle (symmetric) below which the rider may stop
             walking and start cycling. The default is 0.174.
 
+        f_0 : float, optional
+            Repulsive force magnitude at the ego-location of the bike. The
+            default is 7.0 (m/s)
         e_0 : float, optional
             Exccentricity of the repulsive force ellipses, The default
             is 0.995.
@@ -824,6 +828,7 @@ class InvPendulumBicycleParameters(BicycleParameters):
         self.delta_max_walk = delta_max_walk
 
         # repulsive force fields
+        self.f_0 = f_0
         self.e_0 = e_0
         self.e_1 = e_1
         self.sigma_0 = sigma_0
@@ -1023,6 +1028,23 @@ class InvPendulumBicycleParameters(BicycleParameters):
                              {delta_max_walk:.2f}"
             )
         self._delta_max_walk = delta_max_walk
+
+    @property
+    def f_0(self) -> float:
+        return self._f_0
+
+    @v_max_walk.setter
+    def f_0(self, f_0) -> None:
+        if hasattr(self, "_f_0"):
+            raise AttributeError("f_0 is immutable.")
+        if not isinstance(f_0, float):
+            raise TypeError("f_0 must be a float.")
+        if not f_0 >= 0:
+            raise ValueError(
+                f"f_0 must be >=0, instead it was \
+                             {f_0:.2f}"
+            )
+        self._f_0 = f_0
 
     @property
     def e_0(self) -> float:
