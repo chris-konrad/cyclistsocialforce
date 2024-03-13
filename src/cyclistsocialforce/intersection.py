@@ -120,8 +120,8 @@ class StraightRoadSegment(RoadSegment):
         vert_r = R @ np.c_[x, yr].T + np.reshape(x0[:2], (2, 1))
         vert_l = R @ np.c_[x, yl].T + np.reshape(x0[:2], (2, 1))
 
-        self.edges.append(RoadEdge(vert_r.T))
-        self.edges.append(RoadEdge(vert_l.T))
+        self.edges.append(RoadEdge(vert_r.T, params=params))
+        self.edges.append(RoadEdge(vert_l.T, params=params))
 
         self.x1 = np.zeros_like(x0)
         self.x1[:2] = x0[:2] + self.length * np.array(
@@ -141,7 +141,7 @@ class CurvedRoadSegment(RoadSegment):
         ds=0.1,
         params=RoadElementParameters(),
     ):
-        RoadSegment.__init__(self, x0, width)
+        RoadSegment.__init__(self, x0, width, ds, params)
         self.length = radius * angle
         self.radius = radius
         self.angle = angle
@@ -187,8 +187,8 @@ class CurvedRoadSegment(RoadSegment):
         vert_r = R @ np.c_[x_r, y_r].T + np.reshape(x0[:2], (2, 1))
         vert_l = R @ np.c_[x_l, y_l].T + np.reshape(x0[:2], (2, 1))
 
-        self.edges.append(RoadEdge(vert_r.T))
-        self.edges.append(RoadEdge(vert_l.T))
+        self.edges.append(RoadEdge(vert_r.T, params=params))
+        self.edges.append(RoadEdge(vert_l.T, params=params))
 
         self.x1 = np.zeros((3))
         self.x1[:2] = (R @ np.c_[x1, y1].T).flatten() + x0[:2]
@@ -203,13 +203,11 @@ class RoadEdge:
     at the current time.
     """
 
-    def __init__(self, vertices):
+    def __init__(self, vertices, params=RoadElementParameters()):
         self.vertices = vertices
+        self.params = params
 
     def calcRepulsiveForce(self, x, y):
-        F0 = 0.2
-        decay = -1.5
-
         s = x.shape
         x = x.flatten()
         y = y.flatten()
@@ -221,7 +219,7 @@ class RoadEdge:
         erx = (self.vertices[:, 0][np.newaxis, :] - x[:, np.newaxis]) / r
         ery = (self.vertices[:, 1][np.newaxis, :] - y[:, np.newaxis]) / r
 
-        F = -F0 * r**decay
+        F = -self.params.F_0 * r**-self.params.sigma
         Fx = np.sum(F * erx, axis=1)
         Fy = np.sum(F * ery, axis=1)
 

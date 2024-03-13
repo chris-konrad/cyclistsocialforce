@@ -17,11 +17,52 @@ class RoadElementParameters:
         roadsurface_color=(0.8, 0.8, 0.8),
         roadedge_color="white",
         roadedge_linewidth=1,
+        F_0=0.05,
+        sigma=3.0,
     ):
         self.roadsurface_color = roadsurface_color
 
         self.roadedge_color = roadedge_color
         self.roadedge_linewidth = roadedge_linewidth
+
+        self.F_0 = F_0
+        self.sigma = sigma
+
+    @property
+    def F_0(self) -> float:
+        return self._F_0
+
+    @F_0.setter
+    def F_0(self, F_0) -> None:
+        if hasattr(self, "_F_0"):
+            raise AttributeError("F_0 is immutable.")
+        if not isinstance(F_0, float):
+            msg = "F_0 must be a float."
+            raise TypeError(msg)
+        if not F_0 >= 0:
+            raise ValueError(
+                f"F_0 must be >=0, instead it was \
+                             {F_0:.2f}"
+            )
+        self._F_0 = F_0
+
+    @property
+    def sigma(self) -> float:
+        return self._sigma
+
+    @sigma.setter
+    def sigma(self, sigma) -> None:
+        if hasattr(self, "_sigma"):
+            raise AttributeError("sigma is immutable.")
+        if not isinstance(sigma, float):
+            msg = "sigma must be a float."
+            raise TypeError(msg)
+        if not sigma >= 0:
+            raise ValueError(
+                f"sigma must be >=0, instead it was \
+                             {sigma:.2f}"
+            )
+        self._sigma = sigma
 
 
 class VehicleParameters:
@@ -1170,6 +1211,7 @@ class InvPendulumBicycleParameters(BicycleParameters):
 
         K_tau_2 = (v * self.l_2) / (self.g * (self.l))
         K = (v**2) / (self.g * (self.l))
+
         tau_3 = self.l / v
 
         return K, K_tau_2, tau_3
@@ -1182,26 +1224,16 @@ class InvPendulumBicycleParameters(BicycleParameters):
 
         params_kx = np.array(
             [
-                [1.15131180e01, -3.22886328e01, 3.35248998e01, -1.65433723e01],
-                [-4.86350000e01, 0.00000000e00, 0.00000000e00, 0.00000000e00],
-                [
-                    7.20717440e-01,
-                    -1.32260887e01,
-                    -1.39155308e02,
-                    6.86683060e01,
-                ],
-                [
-                    2.05668931e-01,
-                    -3.88580525e00,
-                    -4.70079266e01,
-                    2.46445437e01,
-                ],
-                [9.70779013e-13, -1.07959000e01, 0.00000000e00, 0.00000000e00],
+                [3.48203226e02, -5.12057324e03, 1.58364873e04, -1.98073306e04],
+                [-4.51700000e01, 0.00000000e00, 0.00000000e00, 0.00000000e00],
+                [-9.16379250e02, 1.31769807e04, -6.57341643e04, 8.22163589e04],
+                [3.20214069e02, -4.69953797e03, 1.66378680e04, -2.43114309e04],
+                [2.87549256e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00],
             ]
         )
 
         params_ku = np.array(
-            [9.76552172e-13, -1.07959000e01, 0.00000000e00, 0.00000000e00]
+            [2.87524813e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00]
         )
 
         vdata = np.array((1, v**-1, v**-2, v**-3))
