@@ -561,7 +561,11 @@ class Vehicle:
         if "label" not in plot_kw:
             plot_kw["label"] = self.id
 
-        for ax, i_s in zip(axes, np.cumsum(states_to_plot)):
+        for ax, i_s, name in zip(
+            axes,
+            np.cumsum(states_to_plot),
+            np.array(self.s_names)[states_to_plot],
+        ):
             data_to_plot = self.traj[i_s - 1, :i_end]
             if "deg" in name:
                 data_to_plot = 180 * data_to_plot / np.pi
@@ -1748,14 +1752,14 @@ class InvPendulumBicycle(TwoDBicycle):
         return A, B, C, D
 
     def init_dynamics_statespace(self):
-        K_x, K_u = self.params.fullstate_feedback_gains()
+        K_x, K_u = self.params.fullstate_feedback_gains(self.s[3])
         A, B, C, D = self.get_openloop_statespace_matrices()
 
         self.dynamics = ct.ss(A - B[:, np.newaxis] @ K_x, K_u * B, C, D)
 
     def update_dynamics(self):
         A, B, C, D = self.get_openloop_statespace_matrices()
-        K_x, K_u = self.params.fullstate_feedback_gains()
+        K_x, K_u = self.params.fullstate_feedback_gains(self.s[3])
         K, K_tau_2, tau_3 = self.params.timevarying_combined_params(self.s[3])
 
         A[3, 0] = -K / self.params.tau_1_squared
@@ -1763,6 +1767,7 @@ class InvPendulumBicycle(TwoDBicycle):
         A[4, 0] = 1 / tau_3
 
         self.dynamics.A = A - B[:, np.newaxis] @ K_x
+        self.dynamics.B = K_u * B[:, np.newaxis]
 
     def speed_control(self, vd):
         """Calculate the acceleration as a reaction to the current social

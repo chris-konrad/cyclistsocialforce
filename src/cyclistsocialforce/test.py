@@ -4,12 +4,11 @@ Created on Mon Mar 11 09:36:53 2024
 
 @author: Christoph M. Schmidt
 """
-
-import unittest
-import argparse
-import numpy as np
 import control as ct
 import matplotlib.pyplot as plt
+import numpy as np
+import unittest
+
 from cyclistsocialforce.vehicle import InvPendulumBicycle
 
 
@@ -41,8 +40,6 @@ class TestBicycleDynamics(unittest.TestCase):
 
         # run test on package implementation
         for fx, fy in zip(Fx, Fy):
-            if fy > 0:
-                print("y>0!")
             testbike.s[[2, 4, 5]] = testbike.step_yaw(fx, fy)
 
             # counter and trajectories.
@@ -83,7 +80,7 @@ class TestBicycleDynamics(unittest.TestCase):
         B = np.array([0, 1 / testbike.params.i_steer_vertvert, 0, 0, 0])
         Cpsi = np.array([0, 0, 0, 0, 1])
         D = 0
-        Ku = 1 / -0.4631387828090523
+        Ku = 1 / -0.46313878281084603
 
         G = ct.ss(A, B, Cpsi, D)
 
@@ -138,6 +135,32 @@ class TestBicycleDynamics(unittest.TestCase):
                 ax[2].plot(t, psi_d, "k", label="input")
                 ax[2].set_ylabel("yaw angle")
                 plt.legend()
+
+                # print some excerpts of the vehicle state
+                K_x, K_u = testbike.params.fullstate_feedback_gains(
+                    testbike.s[3]
+                )
+                print("-- IMPLEMENTATION --")
+                print(f"speed: {testbike.s[3]}")
+                print(f"dynamics: ")
+                print(f"    A = ")
+                print(f"{testbike.dynamics.A}")
+                print(f"    B = ")
+                print(f"{testbike.dynamics.B}")
+                print(f"gains: ")
+                print(f"    K_x = {K_x}")
+                print(f"    K_u = {K_u}")
+
+                print("-- Reference --")
+                print(f"speed: {testbike.params.v_desired_default}")
+                print(f"dynamics: ")
+                print(f"    A = ")
+                print(f"{G_controlled.A}")
+                print(f"    B = ")
+                print(f"{G_controlled.B}")
+                print(f"gains: ")
+                print(f"    K_x = {K_inner}")
+                print(f"    K_u = {Ku}")
 
             raise e
 
