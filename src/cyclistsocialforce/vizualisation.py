@@ -118,25 +118,42 @@ class BicycleDrawing2D:
         self.fcolors = fcolors
         self.ecolors = ecolors
 
-        keypoints = self.calc_keypoints(bike.s)
+        self.make_polygon(bike.s)
 
-        if proj_3d:
+    def make_polygon(self, s):
+        """Create the polygon collections that make the bike drawing.
+
+        Called by the constructor.
+
+        Parameters
+        ----------
+        s : array-like
+            Current bicycle state as returned by bicycle.s.
+
+        Returns
+        -------
+        None.
+
+        """
+        keypoints = self.calc_keypoints(s)
+
+        if self.proj_3d:
             self.p = Poly3DCollection(
                 keypoints,
-                facecolors=fcolors,
-                edgecolors=ecolors,
+                facecolors=self.fcolors,
+                edgecolors=self.ecolors,
                 animated=False,
             )
-            ax.add_collection3d(self.p, zs=0)
+            self.ax.add_collection3d(self.p, zs=0)
         else:
             self.p = PolyCollection(
                 keypoints,
-                animated=animated,
-                facecolors=fcolors,
-                edgecolors=ecolors,
+                animated=self.animated,
+                facecolors=self.fcolors,
+                edgecolors=self.ecolors,
                 zorder=10,
             )
-            ax.add_collection(self.p)
+            self.ax.add_collection(self.p)
 
     def update(self, bike):
         """Update the drawing according to the bicycles state.
