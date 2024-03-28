@@ -30,6 +30,12 @@ class BikeDrawing2DParameters:
         roll_indicator_color_edge=None,
         roll_indicator_color_bg=None,
         roll_indicator_color_marker=None,
+        force_color_dest=None,
+        force_color_rep=None,
+        force_color_res=None,
+        show_force_resulting=True,
+        show_force_destination=True,
+        show_forces_repulsive=True,
         show_roll_indicator=True,
         proj_3d=False,
     ):
@@ -54,6 +60,21 @@ class BikeDrawing2DParameters:
             The default is TU Delft cyan.
         rider_color_marker : color, optional
             The default is TU Delft cyan.
+        force_color_dest : color, optional
+            The default is gray.
+        force_color_rep : color, optional
+            The default is gray.
+        force_color_res : color, optional
+            The default is something dark.
+        show_force_resulting : boolean, optional
+            Show arrows for the resulting force experienced by the cyclist. The default
+            is true.
+        show_forces_repulsive : boolean, optional
+            Show arrows for the repulsive forces experienced by the cyclist.
+            The default is true.
+        show_force_destination : boolean, optional
+            Show arrows for the destination forces experienced by the cyclist.
+            The default is true.
         show_roll_indicator : boolean, optional
             Adds the roll indicator colors to the color lists.
             The default is True.
@@ -68,6 +89,10 @@ class BikeDrawing2DParameters:
         """
         self.proj_3d = proj_3d
         self.show_roll_indicator = show_roll_indicator
+        self.show_forces_resulting = show_force_resulting
+        self.show_forces_destination = show_force_destination
+        self.show_forces_repulsive = show_forces_repulsive
+
         self.tud_colors = TUDcolors()
 
         self.init_riderbike_colors(
@@ -79,7 +104,40 @@ class BikeDrawing2DParameters:
             roll_indicator_color_bg,
             roll_indicator_color_marker,
         )
+        self.init_forcearrow_colors(
+            force_color_dest, force_color_rep, force_color_res
+        )
         self.make_colorlists_riderbike()
+
+    def init_forcearrow_colors(
+        self, force_color_dest=None, force_color_rep=None, force_color_res=None
+    ):
+        """Initializes the face and edge colors for the force arrows.
+
+        Parameters
+        ----------
+        force_color_dest : color, optional
+            The default is gray.
+        force_color_rep : color, optional
+            The default is gray.
+        force_color_res : color, optional
+            The default is something dark.
+
+        Returns
+        -------
+        None.
+
+        """
+        if force_color_dest is None:
+            force_color_dest = "gray"
+        if force_color_rep is None:
+            force_color_rep = "gray"
+        if force_color_res is None:
+            force_color_res = (12.0 / 255, 35.0 / 255, 64.0 / 255)
+
+        self.force_color_dest = force_color_dest
+        self.force_color_rep = force_color_rep
+        self.force_color_res = force_color_res
 
     def init_riderbike_colors(
         self,
@@ -121,28 +179,36 @@ class BikeDrawing2DParameters:
         """
 
         if bike_color_frame is None:
-            self.bike_color_frame = self.tud_colors.get("cyaan")
+            bike_color_frame = self.tud_colors.get("cyaan")
         if bike_color_wheels is None:
-            self.bike_color_wheels = "gray"
+            bike_color_wheels = "gray"
 
         if rider_color_body is None:
-            self.rider_color_body = self.tud_colors.get(
+            rider_color_body = self.tud_colors.get(
                 np.random.randint(0, len(self.tud_colors.colors))
             )
         elif isinstance(rider_color_body, list):
-            self.rider_color_body = rider_color_body[
+            rider_color_body = rider_color_body[
                 np.random.randint(0, len(rider_color_body))
             ]
 
         if rider_color_head is None:
-            self.rider_color_head = self.tud_colors.get("cyaan")
+            rider_color_head = self.tud_colors.get("cyaan")
 
         if roll_indicator_color_edge is None:
-            self.roll_indicator_color_edge = "black"
+            roll_indicator_color_edge = "black"
         if roll_indicator_color_bg is None:
-            self.roll_indicator_color_bg = "none"
+            roll_indicator_color_bg = "none"
         if roll_indicator_color_marker is None:
-            self.roll_indicator_color_marker = self.tud_colors.get("rood")
+            roll_indicator_color_marker = self.tud_colors.get("rood")
+
+        self.bike_color_frame = bike_color_frame
+        self.bike_color_wheels = bike_color_wheels
+        self.rider_color_body = rider_color_body
+        self.rider_color_head = rider_color_head
+        self.roll_indicator_color_edge = roll_indicator_color_edge
+        self.roll_indicator_color_bg = roll_indicator_color_bg
+        self.roll_indicator_color_marker = roll_indicator_color_marker
 
     def make_colorlists_riderbike(self):
         """Create the list of colors for the rider+bike polygons.
@@ -184,6 +250,13 @@ class BikeDrawing2DParameters:
                     self.roll_indicator_color_edge,
                     "none",
                 ]
+
+    def get_show_forces(self):
+        return (
+            self.show_forces_destination
+            or self.show_forces_repulsive
+            or self.show_forces_resulting
+        )
 
 
 class RoadElementParameters:

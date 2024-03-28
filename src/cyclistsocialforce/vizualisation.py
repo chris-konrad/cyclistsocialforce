@@ -34,6 +34,9 @@ class BicycleDrawing2D:
         proj_3d=False,
         animated=False,
         show_roll_indicator=True,
+        show_force_resulting=True,
+        show_force_destination=True,
+        show_forces_repulsive=True,
     ):
         """Create a 2D Bicycle Drawing made of polygons.
 
@@ -63,13 +66,15 @@ class BicycleDrawing2D:
         """
 
         if show_roll_indicator is True:
-            self.show_roll_indicator = (
-                type(bike).__name__ == "InvPendulumBicycle"
-            )
+            show_roll_indicator = type(bike).__name__ == "InvPendulumBicycle"
 
         if params is None:
             self.params = BikeDrawing2DParameters(
-                show_roll_indicator=show_roll_indicator, proj_3d=proj_3d
+                show_roll_indicator=show_roll_indicator,
+                proj_3d=proj_3d,
+                show_force_resulting=show_force_resulting,
+                show_force_destination=show_force_destination,
+                show_forces_repulsive=show_forces_repulsive,
             )
         else:
             self.params = params
@@ -79,6 +84,10 @@ class BicycleDrawing2D:
             if proj_3d:
                 self.params.proj_3d = True
                 self.params.make_colorlists_riderbike()
+            if not self.params.get_show_forces():
+                self.params.show_forces_destination = False
+                self.params.show_forces_repulsive = False
+                self.params.show_forces_resulting = False
 
         self.l_1 = bike.params.l_1
         self.l_2 = bike.params.l_2
@@ -86,6 +95,9 @@ class BicycleDrawing2D:
         self.animated = animated
 
         self.make_polygon(bike.s)
+
+        if self.params.show_forces:
+            self.make_force_arrows()
 
     def make_polygon(self, s):
         """Create the polygon collections that make the bike drawing.
@@ -135,19 +147,38 @@ class BicycleDrawing2D:
 
         """
 
-        self.force_handle_dest = self.ax.arrow(
-            0,
-            0,
-            0,
-            0,
-            head_width=0.3,
-            head_length=0.4,
-            linewidth=1,
-            edgecolor="gray",
-            facecolor="gray",
-            animated=True,
-            zorder=3,
-        )
+        if self.params.show_forces_destination:
+            self.force_handle_dest = self.ax.arrow(
+                0,
+                0,
+                0,
+                0,
+                head_width=0.3,
+                head_length=0.4,
+                linewidth=1,
+                edgecolor=self.params.force_color_dest,
+                facecolor=self.params.force_color_dest,
+                animated=self.animated,
+                zorder=3,
+            )
+
+        if self.params.show_forces_resulting:
+            self.force_handle_res = self.ax.arrow(
+                0,
+                0,
+                0,
+                0,
+                head_width=0.3,
+                head_length=0.4,
+                linewidth=1,
+                edgecolor=self.params.force_color_res,
+                facecolor=self.params.force_color_res,
+                animated=self.animated,
+                zorder=3,
+            )
+
+        if self.params.show_forces_repulsive:
+            self.force_handles_rep = []
 
     def update(self, bike):
         """Update the drawing according to the bicycles state.
@@ -182,6 +213,69 @@ class BicycleDrawing2D:
             self.p.do_3d_projection()
         else:
             self.ax.draw_artist(self.p)
+
+    def update_forces(self, s, Fdest=None, Frep=None, Fres=None):
+        """Updates the force vector drawing according to the currently
+        experienced forces.
+
+        Parameters
+        ----------
+        s : array-like, optional
+            First two state of the bicycle (x,y). Not drawn if not specified.
+        Fdest : array-like
+            Destination force given as (Fx, Fy). Not updated if not specified.
+        Frep : array-like
+            List of repulisve forces given as ((Fx1, Fx2, ...) (Fy1, Fy2 ...)).
+            Not updated if not specified.
+        Fres : array-like
+            Resulting force given as (Fx, Fy). Not updated if not specified.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        # repulsive forces
+        if self.params.show_forces_repulsive and Frep is not None:
+            n = len(Frep[0])
+
+            while len(self.force_handles_rep) < n:
+                self.force_handles_rep.append(
+                    self.ax.arrow(
+                        0,
+                        0,
+                        0,
+                        0,
+                        head_width=0.3,
+                        head_length=0.4,
+                        linewidth=1,
+                        edgecolor=self.params.force_color_res,
+                        facecolor=self.params.force_color_res,
+                        animated=self.animated,
+                        zorder=3,
+                    )
+                )
+            if len(len(self.force_handles_rep)) > n:
+                self.force_handle_rep = self.force_handle_rep[:n]
+
+            for a, fx, fy in zip(self.force_handles_rep, Frep[0], Frep[1]):
+                a.set_data(x=s[0], y=s[1], dx=fx, dy=fy)
+                self.ax.draw_artist(a)
+
+        # destination force
+        if self.params.show_forces_destination and Fdest is not None:
+            self.force_handle_dest.set_data(
+                x=s[0], y=s[1], dx=Fdest[0], dy=Fdest[1]
+            )
+            self.ax.draw_artist(self.force_handle_dest)
+
+        # resulting force
+        if self.params.show_forces_resulting and Fres is not None:
+            self.force_handle_res.set_data(
+                x=s[0], y=s[1], dx=Fres[0], dy=Fres[1]
+            )
+            self.ax.draw_artist(self.force_handle_res)
 
     def calc_keypoints(self, s, w=0.45):
         """Calculate the corners of the polygons.
