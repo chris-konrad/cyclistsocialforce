@@ -141,10 +141,10 @@ def angleDifference(a1, a2):
 def cart2polar(x, y):
     rho = np.sqrt(np.power(x, 2) + np.power(y, 2))
 
-    # phi = np.arccos(x/rho)
-    # phi[y<0] = (2*np.pi) - phi[y<0]
-
     phi = np.arccos(x / rho)
+    if type(phi) is not np.ndarray:
+        phi = np.array(phi)
+
     phi[y < 0] = -phi[y < 0]
 
     return rho, phi
