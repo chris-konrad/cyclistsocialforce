@@ -2,13 +2,188 @@
 """
 Created on Tue Sep 26 12:16:53 2023.
 
-Classes managing vehicle parameter sets. 
+Classes managing the parameter sets of the model and the visualisation.
 
 @author: Christoph M. Schmidt
 """
 
 import numpy as np
 import control as ct
+
+from pypaperutils.design import TUDcolors
+
+
+class BikeDrawing2DParameters:
+    """Class storing and maintaining the parameters for a bicycle drawing.
+
+    Parameters include colors,
+    To be used together with cyclistsocialforce.visualisation.BicycleDrawing2D
+
+    """
+
+    def __init__(
+        self,
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+        roll_indicator_color_edge=None,
+        roll_indicator_color_bg=None,
+        roll_indicator_color_marker=None,
+        show_roll_indicator=True,
+        proj_3d=False,
+    ):
+        """Create a bicycle drawing parameters object.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+        rider_color_edge : color, optional
+            The default is TU Delft cyan.
+        rider_color_background : color, optional
+            The default is TU Delft cyan.
+        rider_color_marker : color, optional
+            The default is TU Delft cyan.
+        show_roll_indicator : boolean, optional
+            Adds the roll indicator colors to the color lists.
+            The default is True.
+        proj3d : TYPE, optional
+            Prepares color lists for the 3D drawing instead of 2D.
+            The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.proj_3d = proj_3d
+        self.show_roll_indicator = show_roll_indicator
+        self.tud_colors = TUDcolors()
+
+        self.init_riderbike_colors(
+            bike_color_frame,
+            bike_color_wheels,
+            rider_color_body,
+            rider_color_head,
+            roll_indicator_color_edge,
+            roll_indicator_color_bg,
+            roll_indicator_color_marker,
+        )
+        self.make_colorlists_riderbike()
+
+    def init_riderbike_colors(
+        self,
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+        roll_indicator_color_edge=None,
+        roll_indicator_color_bg=None,
+        roll_indicator_color_marker=None,
+    ):
+        """Initializes the face and edge colors for the bike-rider polygon
+        including the roll indicator.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+        rider_color_edge : color, optional
+            The default is TU Delft cyan.
+        rider_color_background : color, optional
+            The default is TU Delft cyan.
+        rider_color_marker : color, optional
+            The default is TU Delft cyan.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        if bike_color_frame is None:
+            self.bike_color_frame = self.tud_colors.get("cyaan")
+        if bike_color_wheels is None:
+            self.bike_color_wheels = "gray"
+
+        if rider_color_body is None:
+            self.rider_color_body = self.tud_colors.get(
+                np.random.randint(0, len(self.tud_colors.colors))
+            )
+        elif isinstance(rider_color_body, list):
+            self.rider_color_body = rider_color_body[
+                np.random.randint(0, len(rider_color_body))
+            ]
+
+        if rider_color_head is None:
+            self.rider_color_head = self.tud_colors.get("cyaan")
+
+        if roll_indicator_color_edge is None:
+            self.roll_indicator_color_edge = "black"
+        if roll_indicator_color_bg is None:
+            self.roll_indicator_color_bg = "none"
+        if roll_indicator_color_marker is None:
+            self.roll_indicator_color_marker = self.tud_colors.get("rood")
+
+    def make_colorlists_riderbike(self):
+        """Create the list of colors for the rider+bike polygons.
+
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.fcolors_riderbike = [
+            self.bike_color_wheels,
+            self.bike_color_wheels,
+            self.bike_color_frame,
+            self.bike_color_frame,
+            self.rider_color_body,
+            self.rider_color_body,
+            self.rider_color_body,
+            self.rider_color_head,
+        ]
+
+        self.ecolors_riderbike = ["none"] * 8
+
+        if self.show_roll_indicator:
+            if self.proj_3d:
+                self.fcolors_riderbike += [
+                    self.roll_indicator_color_edge,
+                ]
+                self.ecolors_riderbike += [
+                    "none",
+                ]
+            else:
+                self.fcolors_riderbike += [
+                    self.roll_indicator_color_bg,
+                    self.roll_indicator_color_marker,
+                ]
+                self.ecolors_riderbike += [
+                    self.roll_indicator_color_edge,
+                    "none",
+                ]
 
 
 class RoadElementParameters:

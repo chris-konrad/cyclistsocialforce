@@ -14,8 +14,9 @@ from matplotlib.collections import PolyCollection
 from matplotlib.lines import Line2D
 from pypaperutils.design import TUDcolors
 
-
 from mpl_toolkits.mplot3d.art3d import Line3D, Poly3DCollection
+
+from cyclistsocialforce.parameters import BikeDrawing2DParameters
 
 
 class BicycleDrawing2D:
@@ -29,12 +30,9 @@ class BicycleDrawing2D:
         self,
         ax,
         bike,
+        params=None,
         proj_3d=False,
         animated=False,
-        color_bike=None,
-        color_rider=None,
-        color_wheels=None,
-        color_head=None,
         show_roll_indicator=True,
     ):
         """Create a 2D Bicycle Drawing made of polygons.
@@ -45,23 +43,14 @@ class BicycleDrawing2D:
             Axes where the drawing should be created in.
         bike : cyclistsocialforce.vehicle.Bicycle
             Bicycle object to be drawn.
+        params : cyclistsocialforce.parameters.BikeDrawing2DParameters, optinl
+            Parameters object. If none is given, initializes the default
+            parameters.
         proj_3d : bool. optinal
             Project the 2D drawing in the ground plane of a 3D plot. The
             default is False.
         animated : bool, optional
             Animate the drawing. The default is False.
-        color_bike : color, optional
-            Matplotlib color specification for the bike frame.
-            The default is None and produces a TU Delft cyan frame.
-        color_rider : color, optional
-            Matplotlib color specification for the rider body/clothes.
-            The default is None and produces TU Delft darkblue clothes.
-        color_wheels : color, optional
-            Matplotlib color specification for the bicycle tires.
-            The default is None and produces black tires.
-        color_head : color, optional
-            Matplotlib color specification for the head/helmet/hair of the
-            rider. The default is None and produces a TU Delft cyan helmet.
         show_roll_indicator : bool, optional
             Draws a small roll angle indicator (2D: bubble scale, 3D: inv.
             pendulum). This only has an effect if the bicycle is a
@@ -78,45 +67,23 @@ class BicycleDrawing2D:
                 type(bike).__name__ == "InvPendulumBicycle"
             )
 
-        self.tud_colors = TUDcolors()
-
-        if color_bike is None:
-            color_bike = self.tud_colors.get("cyaan")
-        if color_rider is None:
-            color_rider = self.tud_colors.get("roze")
-        if color_wheels is None:
-            color_wheels = "gray"
-        if color_head is None:
-            color_head = self.tud_colors.get("cyaan")
-
-        fcolors = [
-            color_wheels,
-            color_wheels,
-            color_bike,
-            color_bike,
-            color_rider,
-            color_rider,
-            color_rider,
-            color_head,
-        ]
-        ecolors = ["none"] * 8
-        if self.show_roll_indicator:
+        if params is None:
+            self.params = BikeDrawing2DParameters(
+                show_roll_indicator=show_roll_indicator, proj_3d=proj_3d
+            )
+        else:
+            self.params = params
+            if not show_roll_indicator:
+                self.params.show_roll_indicator = False
+                self.params.make_colorlists_riderbike()
             if proj_3d:
-                fcolors.append("black")
-                ecolors.append("none")
-            else:
-                fcolors.append("none")
-                fcolors.append(self.tud_colors.get("rood"))
-                ecolors.append("black")
-                ecolors.append("none")
+                self.params.proj_3d = True
+                self.params.make_colorlists_riderbike()
 
         self.l_1 = bike.params.l_1
         self.l_2 = bike.params.l_2
         self.ax = ax
         self.animated = animated
-        self.proj_3d = proj_3d
-        self.fcolors = fcolors
-        self.ecolors = ecolors
 
         self.make_polygon(bike.s)
 
@@ -137,11 +104,11 @@ class BicycleDrawing2D:
         """
         keypoints = self.calc_keypoints(s)
 
-        if self.proj_3d:
+        if self.params.proj_3d:
             self.p = Poly3DCollection(
                 keypoints,
-                facecolors=self.fcolors,
-                edgecolors=self.ecolors,
+                facecolors=self.params.fcolors_riderbike,
+                edgecolors=self.params.ecolors_riderbike,
                 animated=False,
             )
             self.ax.add_collection3d(self.p, zs=0)
@@ -149,11 +116,38 @@ class BicycleDrawing2D:
             self.p = PolyCollection(
                 keypoints,
                 animated=self.animated,
-                facecolors=self.fcolors,
-                edgecolors=self.ecolors,
+                facecolors=self.params.fcolors_riderbike,
+                edgecolors=self.params.ecolors_riderbike,
                 zorder=10,
             )
             self.ax.add_collection(self.p)
+
+    def make_force_arrows(self):
+        """Create a set of lists to storing the handles of force arrows
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.force_handle_dest = self.ax.arrow(
+            0,
+            0,
+            0,
+            0,
+            head_width=0.3,
+            head_length=0.4,
+            linewidth=1,
+            edgecolor="gray",
+            facecolor="gray",
+            animated=True,
+            zorder=3,
+        )
 
     def update(self, bike):
         """Update the drawing according to the bicycles state.
@@ -172,14 +166,19 @@ class BicycleDrawing2D:
         keypoints = self.calc_keypoints(bike.s)
 
         self.p.set_verts(keypoints)
-        if self.show_roll_indicator:
+        if self.params.show_roll_indicator:
             if abs(bike.s[5]) > np.pi / 4:
-                self.ecolors[-2] = self.tud_colors.get("rood")
+                self.params.ecolors_riderbike[-2] = self.params.tud_colors.get(
+                    "rood"
+                )
             else:
-                self.ecolors[-2] = "black"
-            self.p.set(facecolor=self.fcolors, edgecolor=self.ecolors)
+                self.params.ecolors_riderbike[-2] = "black"
+            self.p.set(
+                facecolor=self.params.fcolors_riderbike,
+                edgecolor=self.params.ecolors_riderbike,
+            )
 
-        if self.proj_3d:
+        if self.params.proj_3d:
             self.p.do_3d_projection()
         else:
             self.ax.draw_artist(self.p)
@@ -299,14 +298,14 @@ class BicycleDrawing2D:
             keypoints[i] = keypoints[i].T
 
             # if 3d, add zeros for z-axis.
-            if self.proj_3d:
+            if self.params.proj_3d:
                 keypoints[i] = np.concatenate(
                     (keypoints[i], np.array([[0], [0], [0], [0]])), axis=1
                 )
 
         # if 3d, additionally create a stylized 3d penulum to the 2d drawing.
-        if self.show_roll_indicator:
-            if self.proj_3d:
+        if self.params.show_roll_indicator:
+            if self.params.proj_3d:
                 pend = R_psi @ np.array(
                     [
                         [-0.1, 0],
