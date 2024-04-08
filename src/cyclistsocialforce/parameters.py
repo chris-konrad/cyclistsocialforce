@@ -33,10 +33,10 @@ class BikeDrawing2DParameters:
         force_color_dest=None,
         force_color_rep=None,
         force_color_res=None,
-        show_force_resulting=True,
-        show_force_destination=True,
-        show_forces_repulsive=True,
-        show_roll_indicator=True,
+        draw_force_resulting=True,
+        draw_force_destination=True,
+        draw_forces_repulsive=True,
+        draw_roll_indicator=True,
         proj_3d=False,
     ):
         """Create a bicycle drawing parameters object.
@@ -66,16 +66,16 @@ class BikeDrawing2DParameters:
             The default is gray.
         force_color_res : color, optional
             The default is something dark.
-        show_force_resulting : boolean, optional
+        draw_force_resulting : boolean, optional
             Show arrows for the resulting force experienced by the cyclist. The default
             is true.
-        show_forces_repulsive : boolean, optional
+        draw_forces_repulsive : boolean, optional
             Show arrows for the repulsive forces experienced by the cyclist.
             The default is true.
-        show_force_destination : boolean, optional
+        draw_force_destination : boolean, optional
             Show arrows for the destination forces experienced by the cyclist.
             The default is true.
-        show_roll_indicator : boolean, optional
+        draw_roll_indicator : boolean, optional
             Adds the roll indicator colors to the color lists.
             The default is True.
         proj3d : TYPE, optional
@@ -88,10 +88,10 @@ class BikeDrawing2DParameters:
 
         """
         self.proj_3d = proj_3d
-        self.show_roll_indicator = show_roll_indicator
-        self.show_forces_resulting = show_force_resulting
-        self.show_forces_destination = show_force_destination
-        self.show_forces_repulsive = show_forces_repulsive
+        self.draw_roll_indicator = draw_roll_indicator
+        self.draw_forces_resulting = draw_force_resulting
+        self.draw_forces_destination = draw_force_destination
+        self.draw_forces_repulsive = draw_forces_repulsive
 
         self.tud_colors = TUDcolors()
 
@@ -233,7 +233,7 @@ class BikeDrawing2DParameters:
 
         self.ecolors_riderbike = ["none"] * 8
 
-        if self.show_roll_indicator:
+        if self.draw_roll_indicator:
             if self.proj_3d:
                 self.fcolors_riderbike += [
                     self.roll_indicator_color_edge,
@@ -251,11 +251,11 @@ class BikeDrawing2DParameters:
                     "none",
                 ]
 
-    def get_show_forces(self):
+    def get_draw_forces(self):
         return (
-            self.show_forces_destination
-            or self.show_forces_repulsive
-            or self.show_forces_resulting
+            self.draw_forces_destination
+            or self.draw_forces_repulsive
+            or self.draw_forces_resulting
         )
 
 
