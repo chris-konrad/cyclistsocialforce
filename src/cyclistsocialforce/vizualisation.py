@@ -18,6 +18,109 @@ from mpl_toolkits.mplot3d.art3d import Line3D, Poly3DCollection
 
 from cyclistsocialforce.parameters import BikeDrawing2DParameters
 
+# from cyclistsocialforce.vehicle import StationaryIMPTCCar
+
+
+class CarDrawing2D:
+    def __init__(self, ax, car, animated=False):
+        """Create a 2D Bicycle Drawing made of polygons.
+
+        Parameters
+        ----------
+        ax : Axes
+            Axes where the drawing should be created in.
+        car : cyclistsocialforce.vehicle.StationaryIMPTCCar
+            Car object to be drawn.
+        animated : bool, optional
+            Animate the drawing. The default is False.
+        """
+
+        self.has_fixed_dimensions = not isinstance(
+            car, cyclistsocialforce.vehicle.StationaryIMPTCCar
+        )
+        self.animated = animated
+        self.ax = ax
+
+        self.make_polygon(car.s)
+
+    def make_polygon(self, s):
+        """Create the polygon collections that make the car drawing.
+
+        Called by the constructor.
+
+        Parameters
+        ----------
+        s : array-like
+            Current car state as returned by car.s.
+
+        Returns
+        -------
+        None.
+
+        """
+        keypoints = self.calc_keypoints(s)
+
+        self.p = PolyCollection(
+            keypoints,
+            animated=self.animated,
+            facecolors="gray",
+            edgecolors="black",
+            zorder=10,
+        )
+        self.ax.add_collection(self.p)
+
+    def calc_keypoints(self, s):
+        """Calculate the corners of the polygons.
+
+        Uses fixed witdth, length and the current orientation if
+        self.has_fixed_dimesion. Otherwise uses floating cornerns that
+        implicitely determine the orientation and that are expected to be
+        the last 8 entries in s (as returned by StationaryIMPTCCar.s)
+
+        Parameters
+        ----------
+        s : array
+            Car state.
+
+        Returns
+        -------
+        keypoints : List[Array]
+            List of arrays describing the corners of each polygon.
+        """
+        if self.has_fixed_dimensions:
+            R_psi = np.array(
+                [[np.cos(s[2]), -np.sin(s[2])], [np.sin(s[2]), np.cos(s[2])]]
+            )
+            keypoints = self.prototype_keypoints()
+            keypoints = R_psi @ self.prototype_keypoints().T + np.array(
+                [[s[0]], [s[1]]]
+            )
+        else:
+            keypoints = [np.reshape(s[-8:], (4, 2))]
+            keypoints.append(keypoints[[0, 2], :])
+            keypoints.append(keypoints[[1, 3], :])
+
+        return keypoints
+
+    def update(self, car):
+        """Update the drawing according to the car state.
+
+        Parameters
+        ----------
+        bike : cyclistsocialforce.vehicle.StationaryIMPTCCar
+            Car object whose state the drawing will be updated to.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        keypoints = self.calc_keypoints(car.s)
+
+        self.p.set_verts(keypoints)
+        self.ax.draw_artist(self.p)
+
 
 class BicycleDrawing2D:
     """A 2D drawing of a standard bicyle with rider from bird-eyes view.
