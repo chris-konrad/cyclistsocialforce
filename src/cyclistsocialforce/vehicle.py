@@ -121,7 +121,7 @@ class Vehicle:
         self.route = route
 
         # has a drawing
-        self.hasDrawings = [False]
+        self.drawing = None
 
         # next destination and queue of following destination
         self.dest = np.array([s0[0], s0[1], 0.0])
@@ -720,6 +720,10 @@ class StationaryCar(Vehicle):
         if self.traj.size > 0 and np.shape(self.traj)[1] < self.i:
             self.s = self.traj[:, self.i]
             
+        # Drawing
+        if self.drawing is not None:
+            self.drawing.update(self)
+            
     def update_drawing():
         
         if not self.
@@ -1044,6 +1048,10 @@ class Bicycle(Vehicle):
         self.i = self.i % self.traj.shape[1]
 
         self.traj[:, self.i] = self.s
+        
+        # Drawing
+        if self.drawing is not None:
+            self.drawing.update(self)
 
     def makeBikeDrawing(
         self,
@@ -1439,6 +1447,10 @@ class TwoDBicycle(Bicycle):
         else:
             a, odelta = super().control(Fx, Fy)
             super().move(a, odelta)
+            
+        # Drawing
+        if self.drawing is not None:
+            self.drawing.update(self)
 
         # Trajectories
         self.i += 1
@@ -1967,6 +1979,10 @@ class InvPendulumBicycle(TwoDBicycle):
                 )
 
                 # print(f"{self.id} is walking.")
+        
+        # Drawing
+        if self.drawing is not None:
+            self.drawing.update(self)
 
         # counter and trajectories.
         self.i += 1

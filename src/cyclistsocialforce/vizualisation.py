@@ -418,6 +418,21 @@ class VehicleDrawing:
             )
             self.ax.draw_artist(self.force_handle_res)
 
+    def set_animation(self, animated):
+        """Set the animation property of the vehicle
+
+        Set to false to prevent the animated elements from disappearing once
+        the animation ends. Set to True to make all elements animated.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.animated = animated
+        for key in self.ghandles:
+            self.ghandles[key].set_animated(animated)
+
 
 class CarDrawing2D(VehicleDrawing):
     def __init__(
