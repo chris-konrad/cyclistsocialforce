@@ -18,7 +18,405 @@ from mpl_toolkits.mplot3d.art3d import Line3D, Poly3DCollection
 
 from cyclistsocialforce.parameters import BikeDrawing2DParameters
 
-# from cyclistsocialforce.vehicle import StationaryIMPTCCar
+
+class VehicleDrawing:
+    def __init__(
+        self,
+        ax,
+        vehicle,
+        draw_force_resulting=True,
+        draw_force_destination=True,
+        draw_forces_repulsive=True,
+        draw_trajectory=False,
+        draw_nextdest=False,
+        draw_destqueue=False,
+        draw_pastdest=False,
+        draw_name=False,
+        animated=True,
+    ):
+        """Drawing of the peripherals common to all road users"""
+
+        self.animated = animated
+        self.ax = ax
+
+        self.draw_force_resulting = draw_force_resulting
+        self.draw_force_destination = draw_force_destination
+        self.draw_forces_repulsive = draw_forces_repulsive
+        self.draw_trajectory = draw_trajectory
+        self.draw_nextdest = draw_nextdest
+        self.draw_pastdest = draw_pastdest
+        self.draw_destqueue = draw_destqueue
+        self.draw_name = draw_name
+
+        self.ghandles = {}
+
+        self.make_drawing()
+
+    def make_drawing(self, vehicle):
+        """Create the graphics handles for the elements of the drawing.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        self.make_force_arrows()
+
+        if self.draw_trajectory:
+            self.make_trajectory_drawing(vehicle)
+        if self.draw_nextdest:
+            self.make_nextdest_drawing(vehicle)
+        if self.draw_pastdest:
+            self.make_pastdest_drawing(vehicle)
+        if self.draw_destqueue:
+            self.make_destqueue_drawing(vehicle)
+        if self.draw_name:
+            self.make_name_drawing(vehicle)
+
+    def make_trajectory_drawing(self, vehicle):
+        """Creates a plot of the past x-y trajectory
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        self.ghandles["trajectory"] = self.ax.plot(
+            vehicle.traj[0],
+            vehicle.traj[1],
+            color=(0.0 / 255, 166.0 / 255, 214.0 / 255),
+            linewidth=1,
+            animated=self.animated,
+        )
+        self.ax.draw_artist(self.ghandles["trajectory"])
+
+    def make_nextdest_drawing(self, vehicle):
+        """Draw a straigt line to the next destination. Marks the next
+        destination with an x.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        (self.ghandles["nextdest-line"],) = self.ax.plot(
+            (vehicle.s[0], vehicle.dest[0]),
+            (vehicle.s[1], vehicle.dest[1]),
+            color="gray",
+            linewidth=1,
+            linestyle="dashed",
+            animated=self.animated,
+            zorder=3,
+        )
+        self.ax.draw_artist(self.ghandles["nextdest-line"])
+
+        if not self.draw_destqueue:
+            (self.ghandles["nextdest-marker"],) = self.ax.plot(
+                vehicle.dest[0],
+                vehicle.dest[1],
+                marker="x",
+                markersize=5,
+                markeredgecolor="gray",
+                markeredgewidth=2,
+                animated=self.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["nextdest-marker"])
+
+    def make_destqueue_drawing(self, vehicle):
+        """Draw markers for the remaining intermediate destinations in the
+        queue.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        if vehicle.destqueue is None:
+            (self.ghandles["destqueue"],) = self.ax.plot(
+                vehicle.dest[0],
+                vehicle.dest[1],
+                marker="x",
+                markersize=5,
+                markeredgecolor=(0.0 / 255, 166.0 / 255, 214.0 / 255),
+                markeredgewidth=1,
+                animated=self.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["destqueue"])
+        else:
+            (self.ghandles["destqueue"],) = self.ax.plot(
+                vehicle.destqueue[vehicle.destpointer :, 0],
+                vehicle.destqueue[vehicle.destpointer :, 1],
+                linestyle="None",
+                marker="x",
+                markersize=5,
+                markeredgecolor="gray",
+                markeredgewidth=1,
+                animated=self.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["destqueue"])
+
+    def make_pastdest_drawing(self, vehicle):
+        """Draw markers for the past destinations.
+
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.draw_pastdest and vehicle.destqueue is not None:
+            (self.ghandles["pastdest"],) = self.ax.plot(
+                vehicle.destqueue[: vehicle.destpointer, 0],
+                vehicle.destqueue[: vehicle.destpointer, 1],
+                linestyle="None",
+                marker="x",
+                markersize=5,
+                markeredgecolor="gray",
+                markeredgewidth=1,
+                animated=self.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["pastdest"])
+
+    def make_name_drawing(self, vehicle):
+        """Draw the name of the vehicle.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        self.ghandles["name"] = self.ax.text(
+            vehicle.s[0],
+            vehicle.s[1] + 1,
+            vehicle.id,
+            color="black",
+            fontsize=8,
+            animated=self.animated,
+            zorder=4,
+        )
+        self.ax.draw_artist(self.ghandles["name"])
+
+    def make_force_arrows(self):
+        """Create a set of lists to storing the handles of force arrows
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        if self.params.show_forces_destination:
+            self.force_handle_dest = self.ax.arrow(
+                0,
+                0,
+                0,
+                0,
+                head_width=0.3,
+                head_length=0.4,
+                linewidth=1,
+                edgecolor=self.params.force_color_dest,
+                facecolor=self.params.force_color_dest,
+                animated=self.animated,
+                zorder=3,
+            )
+
+        if self.params.show_forces_resulting:
+            self.force_handle_res = self.ax.arrow(
+                0,
+                0,
+                0,
+                0,
+                head_width=0.3,
+                head_length=0.4,
+                linewidth=1,
+                edgecolor=self.params.force_color_res,
+                facecolor=self.params.force_color_res,
+                animated=self.animated,
+                zorder=3,
+            )
+
+        if self.params.show_forces_repulsive:
+            self.force_handles_rep = []
+
+    def update(self, vehicle, Fdest=None, Frep=None, Fres=None):
+        """Updates all elements of the vehicle drawing.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        self.update_forces(vehicle.s, Fdest, Frep, Fres)
+
+        self.update_trajectory_drawing(vehicle)
+        self.update_nextdest_drawing(vehicle)
+        self.update_destqueue_drawing(vehicle)
+        self.update_pastdest_drawing(vehicle)
+        self.update_name_drawing(vehicle)
+
+    def update_trajectory_drawing(self, vehicle):
+        """Update the trajctory drawing
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.draw_trajectory:
+            self.ghandles["trajectory"].set_data(
+                vehicle.traj[0, 0 : vehicle.i], vehicle.traj[1, 0 : vehicle.i]
+            )
+            self.ax.draw_artist(self.ghandles["trajectory"])
+
+    def update_nextdest_drawing(self, vehicle):
+        """Update the drawing of the next destinations.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.draw_nextdest:
+            if vehicle.destspline is not None:
+                self.ghandles["nextdest-line"].set_data(
+                    (vehicle.destspline[:, 0]),
+                    (vehicle.destspline[:, 1]),
+                )
+            else:
+                self.ghandles["nextdest-line"].set_data(
+                    (vehicle.s[0], vehicle.dest[0]),
+                    (vehicle.s[1], vehicle.dest[1]),
+                )
+            self.ax.draw_artist(self.ghandles["nextdest-line"])
+
+            if not self.draw_destqueue:
+                self.ghandles["nextdest-marker"].set_data(
+                    vehicle.dest[0], vehicle.dest[1]
+                )
+                self.ax.draw_artist(self.ghandles["nextdest-marker"])
+
+    def update_destqueue_drawing(self, vehicle):
+        """Update the drawing of the destination queue.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.draw_destqueue:
+            if vehicle.destqueue is None:
+                self.ghandles["destqueue"].set_data(
+                    vehicle.dest[0], vehicle.dest[1]
+                )
+            else:
+                self.ghandles["destqueue"].set_data(
+                    vehicle.destqueue[vehicle.destpointer :, 0],
+                    vehicle.destqueue[vehicle.destpointer :, 1],
+                )
+            self.ax.draw_artist(self.ghandles["destqueue"])
+
+    def update_pastdest_drawing(self, vehicle):
+        """Update the drawing of the past destinations
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.draw_pastdest:
+            if self.ghandles["pastdest"] is not None:
+                self.ghandles["pastdest"].set_data(
+                    vehicle.destqueue[: vehicle.destpointer, 0],
+                    vehicle.destqueue[: vehicle.destpointer, 1],
+                )
+            self.ax.draw_artist(self.ghandles["pastdest"])
+
+    def update_name_drawing(self, vehicle):
+        """Update the drawing of the vehicle name
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.draw_name:
+            self.ghandles[14].set_position((vehicle.s[0], vehicle.s[1] + 1))
+            self.ax.draw_artist(self.ghandles[14])
+
+    def update_forces(self, s, Fdest=None, Frep=None, Fres=None):
+        """Updates the force vector drawing according to the currently
+        experienced forces.
+
+        Parameters
+        ----------
+        s : array-like, optional
+            First two state of the bicycle (x,y). Not drawn if not specified.
+        Fdest : array-like
+            Destination force given as (Fx, Fy). Not updated if not specified.
+        Frep : array-like
+            List of repulisve forces given as ((Fx1, Fx2, ...) (Fy1, Fy2 ...)).
+            Not updated if not specified.
+        Fres : array-like
+            Resulting force given as (Fx, Fy). Not updated if not specified.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        # repulsive forces
+        if self.params.show_forces_repulsive and Frep is not None:
+            n = len(Frep[0])
+
+            while len(self.force_handles_rep) < n:
+                self.force_handles_rep.append(
+                    self.ax.arrow(
+                        0,
+                        0,
+                        0,
+                        0,
+                        head_width=0.3,
+                        head_length=0.4,
+                        linewidth=1,
+                        edgecolor=self.params.force_color_res,
+                        facecolor=self.params.force_color_res,
+                        animated=self.animated,
+                        zorder=3,
+                    )
+                )
+            if len(len(self.force_handles_rep)) > n:
+                self.force_handle_rep = self.force_handle_rep[:n]
+
+            for a, fx, fy in zip(self.force_handles_rep, Frep[0], Frep[1]):
+                a.set_data(x=s[0], y=s[1], dx=fx, dy=fy)
+                self.ax.draw_artist(a)
+
+        # destination force
+        if self.params.show_forces_destination and Fdest is not None:
+            self.force_handle_dest.set_data(
+                x=s[0], y=s[1], dx=Fdest[0], dy=Fdest[1]
+            )
+            self.ax.draw_artist(self.force_handle_dest)
+
+        # resulting force
+        if self.params.show_forces_resulting and Fres is not None:
+            self.force_handle_res.set_data(
+                x=s[0], y=s[1], dx=Fres[0], dy=Fres[1]
+            )
+            self.ax.draw_artist(self.force_handle_res)
 
 
 class CarDrawing2D:
@@ -199,9 +597,6 @@ class BicycleDrawing2D:
 
         self.make_polygon(bike.s)
 
-        if self.params.show_forces:
-            self.make_force_arrows()
-
     def make_polygon(self, s):
         """Create the polygon collections that make the bike drawing.
 
@@ -237,52 +632,6 @@ class BicycleDrawing2D:
             )
             self.ax.add_collection(self.p)
 
-    def make_force_arrows(self):
-        """Create a set of lists to storing the handles of force arrows
-
-        Parameters
-        ----------
-        None.
-
-        Returns
-        -------
-        None.
-
-        """
-
-        if self.params.show_forces_destination:
-            self.force_handle_dest = self.ax.arrow(
-                0,
-                0,
-                0,
-                0,
-                head_width=0.3,
-                head_length=0.4,
-                linewidth=1,
-                edgecolor=self.params.force_color_dest,
-                facecolor=self.params.force_color_dest,
-                animated=self.animated,
-                zorder=3,
-            )
-
-        if self.params.show_forces_resulting:
-            self.force_handle_res = self.ax.arrow(
-                0,
-                0,
-                0,
-                0,
-                head_width=0.3,
-                head_length=0.4,
-                linewidth=1,
-                edgecolor=self.params.force_color_res,
-                facecolor=self.params.force_color_res,
-                animated=self.animated,
-                zorder=3,
-            )
-
-        if self.params.show_forces_repulsive:
-            self.force_handles_rep = []
-
     def update(self, bike):
         """Update the drawing according to the bicycles state.
 
@@ -316,69 +665,6 @@ class BicycleDrawing2D:
             self.p.do_3d_projection()
         else:
             self.ax.draw_artist(self.p)
-
-    def update_forces(self, s, Fdest=None, Frep=None, Fres=None):
-        """Updates the force vector drawing according to the currently
-        experienced forces.
-
-        Parameters
-        ----------
-        s : array-like, optional
-            First two state of the bicycle (x,y). Not drawn if not specified.
-        Fdest : array-like
-            Destination force given as (Fx, Fy). Not updated if not specified.
-        Frep : array-like
-            List of repulisve forces given as ((Fx1, Fx2, ...) (Fy1, Fy2 ...)).
-            Not updated if not specified.
-        Fres : array-like
-            Resulting force given as (Fx, Fy). Not updated if not specified.
-
-        Returns
-        -------
-        None.
-
-        """
-
-        # repulsive forces
-        if self.params.show_forces_repulsive and Frep is not None:
-            n = len(Frep[0])
-
-            while len(self.force_handles_rep) < n:
-                self.force_handles_rep.append(
-                    self.ax.arrow(
-                        0,
-                        0,
-                        0,
-                        0,
-                        head_width=0.3,
-                        head_length=0.4,
-                        linewidth=1,
-                        edgecolor=self.params.force_color_res,
-                        facecolor=self.params.force_color_res,
-                        animated=self.animated,
-                        zorder=3,
-                    )
-                )
-            if len(len(self.force_handles_rep)) > n:
-                self.force_handle_rep = self.force_handle_rep[:n]
-
-            for a, fx, fy in zip(self.force_handles_rep, Frep[0], Frep[1]):
-                a.set_data(x=s[0], y=s[1], dx=fx, dy=fy)
-                self.ax.draw_artist(a)
-
-        # destination force
-        if self.params.show_forces_destination and Fdest is not None:
-            self.force_handle_dest.set_data(
-                x=s[0], y=s[1], dx=Fdest[0], dy=Fdest[1]
-            )
-            self.ax.draw_artist(self.force_handle_dest)
-
-        # resulting force
-        if self.params.show_forces_resulting and Fres is not None:
-            self.force_handle_res.set_data(
-                x=s[0], y=s[1], dx=Fres[0], dy=Fres[1]
-            )
-            self.ax.draw_artist(self.force_handle_res)
 
     def calc_keypoints(self, s, w=0.45):
         """Calculate the corners of the polygons.
