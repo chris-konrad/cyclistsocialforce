@@ -668,6 +668,73 @@ class Vehicle:
         return axes
 
 
+class StationaryCar(Vehicle):
+    def __init__(self, s0, userId="unknown", trajectory=(), width=2, length=4, animate = False):
+        """Object respresenting a stationary (uncontrolled) car.
+
+        The car may move following a prediscribed trajectory.
+
+        Parameters
+        ----------
+        s0 : List of float
+            List containing the initial car state (x, y, psi, v).
+        userId : str, optional
+            String for identifying this vehicle. Default = ""
+        trajectory : array-like, optional
+            List or array of consecutive vehicle states where the first
+            dimension contains the state variable and the second dimension
+            contains the evolution of states. If empty, the car will not move.
+            The default is ().
+        width : float, optional
+            Width of the vehicle, default is 2 m.
+        length : float, optional
+            Length of the vehicle, default is 4 m.
+
+        Returns
+        -------
+        None.
+
+        """
+        # call super
+        Vehicle.__init__(self, s0, userId)
+
+        self.traj = np.array(trajectory)
+        
+        self.animate = animate
+        self.hasDrawings = [False] * 1
+        
+
+    def step(self):
+        """
+        Move the stationary car to the next state given by its predescribed,
+        fixed trajctory
+
+        Returns
+        -------
+        None.
+
+        """
+        self.i += 1
+
+        # move only of there are still states in the predescribed trajectory.
+        if self.traj.size > 0 and np.shape(self.traj)[1] < self.i:
+            self.s = self.traj[:, self.i]
+            
+    def update_drawing():
+        
+        if not self.
+        
+
+    def calcRepulsiveForce():
+        pass
+
+    def makeDrawing():
+        pass
+
+    def updateDrawing():
+        pass
+
+
 class Bicycle(Vehicle):
     """Parent class for all bicycle types. Child of Vehicle.
 
