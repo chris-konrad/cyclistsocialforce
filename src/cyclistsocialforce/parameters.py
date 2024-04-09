@@ -13,7 +13,83 @@ import control as ct
 from pypaperutils.design import TUDcolors
 
 
-class BikeDrawing2DParameters:
+class VehicleDrawingParameters:
+    """Class storing and maintaining the parameters for a vehicle drawing.
+
+    Parameters include colors,
+    To be used together with cyclistsocialforce.visualisation.Vehicle
+    """
+
+    def __init__(
+        self,
+        animated=False,
+        draw_force_resulting=True,
+        draw_force_destination=True,
+        draw_forces_repulsive=True,
+        draw_trajectory=True,
+        draw_nextdest=False,
+        draw_destqueue=True,
+        draw_pastdest=True,
+        draw_name=True,
+        force_color_dest=None,
+        force_color_rep=None,
+        force_color_res=None,
+    ):
+        self.draw_force_resulting = draw_force_resulting
+        self.draw_force_destination = draw_force_destination
+        self.draw_forces_repulsive = draw_forces_repulsive
+        self.draw_trajectory = draw_trajectory
+        self.draw_nextdest = draw_nextdest
+        self.draw_destqueue = draw_destqueue
+        self.draw_pastdest = draw_pastdest
+        self.draw_name = draw_name
+        self.animated = animated
+
+        self.tud_colors = TUDcolors()
+
+        self.init_forcearrow_colors(
+            force_color_dest, force_color_rep, force_color_res
+        )
+
+    def init_forcearrow_colors(
+        self, force_color_dest=None, force_color_rep=None, force_color_res=None
+    ):
+        """Initializes the face and edge colors for the force arrows.
+
+        Parameters
+        ----------
+        force_color_dest : color, optional
+            The default is gray.
+        force_color_rep : color, optional
+            The default is gray.
+        force_color_res : color, optional
+            The default is something dark.
+
+        Returns
+        -------
+        None.
+
+        """
+        if force_color_dest is None:
+            force_color_dest = "gray"
+        if force_color_rep is None:
+            force_color_rep = "gray"
+        if force_color_res is None:
+            force_color_res = (12.0 / 255, 35.0 / 255, 64.0 / 255)
+
+        self.force_color_dest = force_color_dest
+        self.force_color_rep = force_color_rep
+        self.force_color_res = force_color_res
+
+    def get_draw_forces(self):
+        return (
+            self.draw_forces_destination
+            or self.draw_forces_repulsive
+            or self.draw_forces_resulting
+        )
+
+
+class BikeDrawing2DParameters(VehicleDrawingParameters):
     """Class storing and maintaining the parameters for a bicycle drawing.
 
     Parameters include colors,
@@ -23,6 +99,7 @@ class BikeDrawing2DParameters:
 
     def __init__(
         self,
+        animated=False,
         bike_color_frame=None,
         bike_color_wheels=None,
         rider_color_body=None,
@@ -37,6 +114,11 @@ class BikeDrawing2DParameters:
         draw_force_destination=True,
         draw_forces_repulsive=True,
         draw_roll_indicator=True,
+        draw_trajectory=True,
+        draw_nextdest=False,
+        draw_destqueue=True,
+        draw_pastdest=True,
+        draw_name=True,
         proj_3d=False,
     ):
         """Create a bicycle drawing parameters object.
@@ -87,13 +169,23 @@ class BikeDrawing2DParameters:
         None.
 
         """
+        super().__init__(
+            animated,
+            draw_force_resulting,
+            draw_force_destination,
+            draw_forces_repulsive,
+            draw_trajectory,
+            draw_nextdest,
+            draw_destqueue,
+            draw_pastdest,
+            draw_name,
+            force_color_dest,
+            force_color_rep,
+            force_color_res,
+        )
+
         self.proj_3d = proj_3d
         self.draw_roll_indicator = draw_roll_indicator
-        self.draw_forces_resulting = draw_force_resulting
-        self.draw_forces_destination = draw_force_destination
-        self.draw_forces_repulsive = draw_forces_repulsive
-
-        self.tud_colors = TUDcolors()
 
         self.init_riderbike_colors(
             bike_color_frame,
@@ -104,40 +196,7 @@ class BikeDrawing2DParameters:
             roll_indicator_color_bg,
             roll_indicator_color_marker,
         )
-        self.init_forcearrow_colors(
-            force_color_dest, force_color_rep, force_color_res
-        )
         self.make_colorlists_riderbike()
-
-    def init_forcearrow_colors(
-        self, force_color_dest=None, force_color_rep=None, force_color_res=None
-    ):
-        """Initializes the face and edge colors for the force arrows.
-
-        Parameters
-        ----------
-        force_color_dest : color, optional
-            The default is gray.
-        force_color_rep : color, optional
-            The default is gray.
-        force_color_res : color, optional
-            The default is something dark.
-
-        Returns
-        -------
-        None.
-
-        """
-        if force_color_dest is None:
-            force_color_dest = "gray"
-        if force_color_rep is None:
-            force_color_rep = "gray"
-        if force_color_res is None:
-            force_color_res = (12.0 / 255, 35.0 / 255, 64.0 / 255)
-
-        self.force_color_dest = force_color_dest
-        self.force_color_rep = force_color_rep
-        self.force_color_res = force_color_res
 
     def init_riderbike_colors(
         self,
@@ -250,13 +309,6 @@ class BikeDrawing2DParameters:
                     self.roll_indicator_color_edge,
                     "none",
                 ]
-
-    def get_draw_forces(self):
-        return (
-            self.draw_forces_destination
-            or self.draw_forces_repulsive
-            or self.draw_forces_resulting
-        )
 
 
 class RoadElementParameters:

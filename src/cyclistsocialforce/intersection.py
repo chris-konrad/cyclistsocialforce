@@ -299,11 +299,12 @@ class SocialForceIntersection:
         self.vehicleTheta = np.zeros((self.n_bikes, 1))
         self.update_road_user_positions()
 
-        self.animate = animate
-
         self.hist_n_vecs = []
 
         self.priority_rule = priority_rule
+
+        self.animate = animate
+        self.ax = axes
 
         assert isinstance(id, str), "Intersection ID has to be a string."
         self.id = id
@@ -383,14 +384,22 @@ class SocialForceIntersection:
         # List of additional road edges
         self.road_elements = road_elements
 
-        self.ax = axes
-
-        if animate:
+        # Set up animation
+        if self.animate:
             assert self.ax is not None, "Provide axes for animation!"
-            self.ghandles = []
             self.prepareAxes()
+            self.ghandles = []
+
+            # Add drawing to any vehicle that didn't have one already
+            for v in self.vehicles:
+                if v.drawing is None:
+                    v.add_drawing(self.ax)
+
+            # Draw road elements
             for e in self.road_elements:
                 e.draw_element(self.ax)
+
+            # Draw intersection outline from SUMO net file.
             if self.activate_sumo_cosimulation:
                 patch = PathPatch(
                     self.shape, facecolor="black", edgecolor="black"
@@ -491,8 +500,10 @@ class SocialForceIntersection:
             user.setDestinations(xp, yp, reset=True)
 
         # create drawing for road user
-        if self.animate and user.drawing is None:
-            user.make_default_drawing()
+        if self.animate:
+            if user.drawing is None:
+                user.add_drawing(self.ax)
+            user.drawing.set_animated = True
 
         # add road user to intersection
         print(f"Adding {user.id} to intersection {self.id}")
@@ -868,11 +879,11 @@ class SocialForceIntersection:
 
         self.hist_n_vecs.append(self.n_bikes)
 
-    def endAnimation(self):
-        """End animation of the intersection.
+    def set_animated(self, animated):
+        """Set the animation property of the intersection and all it's vehicles
 
-        Set the "animated" property of all graphic object to False to prevent
-        them from disappearing once the animation ends.
+        Set to False to prevent the animated elements from disappearing once
+        the animation ends. Set to True to make all elements animated.
 
         Returns
         -------
@@ -881,25 +892,7 @@ class SocialForceIntersection:
         """
         if self.animate:
             for g in self.ghandles:
-                g.set_animated(False)
+                g.set_animated(animated)
             for v in self.vehicles:
-                v.endAnimation()
-            self.animate = False
-
-    def restartAnimation(self):
-        """End animation of the intersection.
-
-        Set the "animated" property of all graphic object to True to enable
-        animation.
-
-        Returns
-        -------
-        None.
-
-        """
-        if not self.animate:
-            for g in self.ghandles:
-                g.set_animated(True)
-            for v in self.vehicles:
-                v.restartAnimation()
-            self.animate = True
+                v.drawing.set_animated(animated)
+            self.animate = animated

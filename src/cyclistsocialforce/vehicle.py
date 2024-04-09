@@ -32,7 +32,11 @@ from cyclistsocialforce.parameters import (
     BicycleParameters,
     InvPendulumBicycleParameters,
 )
-from cyclistsocialforce.vizualisation import BicycleDrawing2D
+from cyclistsocialforce.vizualisation import (
+    VehicleDrawing,
+    BicycleDrawing2D,
+    CarDrawing2D,
+)
 
 
 class Vehicle:
@@ -122,6 +126,7 @@ class Vehicle:
 
         # has a drawing
         self.drawing = None
+        self.drawing_class = VehicleDrawing
 
         # next destination and queue of following destination
         self.dest = np.array([s0[0], s0[1], 0.0])
@@ -463,6 +468,45 @@ class Vehicle:
         else:
             self.setDestinations(x_i, y_i, reset=reset)
 
+    def add_drawing(self, ax, drawing=None):
+        """Adds a drawing to this vehicle.
+
+        Parameters
+        ----------
+        ax : axes
+            The axes object to be drawn in.
+        drawing : cyclistsocialforce.vizualisation.VehicleDrawing, optional
+            The drawing to be added. If None, a drawing with default parameters
+            is generated. Default is None.
+        """
+
+        if drawing is None:
+            self.drawing = self.drawing_class(ax, self)
+        else:
+            assert isinstance(drawing, self.drawing_class), (
+                f"Provide a "
+                "CarDrawing2D {self.drawing_class.__name__} object! Instead "
+                "you provided a {type(drawing)}."
+            )
+            self.drawing = drawing
+
+    def update_drawing(self):
+        """Update this vehicles drawing with the current vehicle state.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        assert self.drawing is not None, (
+            "Attempted to update the vehicle "
+            "drawing without a drawing beeing initialized! Call add_drawing "
+            "first!"
+        )
+
+        self.drawing.update(self)
+
     def endAnimation(self):
         """End animation of the vehicle
 
@@ -669,7 +713,15 @@ class Vehicle:
 
 
 class StationaryCar(Vehicle):
-    def __init__(self, s0, userId="unknown", trajectory=(), width=2, length=4, animate = False):
+    def __init__(
+        self,
+        s0,
+        userId="unknown",
+        trajectory=(),
+        width=2,
+        length=4,
+        animate=False,
+    ):
         """Object respresenting a stationary (uncontrolled) car.
 
         The car may move following a prediscribed trajectory.
@@ -698,11 +750,11 @@ class StationaryCar(Vehicle):
         # call super
         Vehicle.__init__(self, s0, userId)
 
+        # overwrite empty trajectory property with the prediscribed trajectory.
         self.traj = np.array(trajectory)
-        
-        self.animate = animate
-        self.hasDrawings = [False] * 1
-        
+
+        # class of drawings of this car.
+        self.drawing_class = CarDrawing2D
 
     def step(self):
         """
@@ -719,15 +771,9 @@ class StationaryCar(Vehicle):
         # move only of there are still states in the predescribed trajectory.
         if self.traj.size > 0 and np.shape(self.traj)[1] < self.i:
             self.s = self.traj[:, self.i]
-            
+
         # Drawing
-        if self.drawing is not None:
-            self.drawing.update(self)
-            
-    def update_drawing():
-        
-        if not self.
-        
+        self.update_drawing()
 
     def calcRepulsiveForce():
         pass
@@ -804,7 +850,8 @@ class Bicycle(Vehicle):
         self.F = []
 
         # has a drawing of a bicycle
-        self.hasDrawings = [False] * 8
+        # self.hasDrawings = [False] * 8
+        self.drawing_class = BicycleDrawing2D
 
         self.destspline = None
 
@@ -1048,10 +1095,9 @@ class Bicycle(Vehicle):
         self.i = self.i % self.traj.shape[1]
 
         self.traj[:, self.i] = self.s
-        
+
         # Drawing
-        if self.drawing is not None:
-            self.drawing.update(self)
+        self.update_drawing()
 
     def makeBikeDrawing(
         self,
@@ -1447,10 +1493,9 @@ class TwoDBicycle(Bicycle):
         else:
             a, odelta = super().control(Fx, Fy)
             super().move(a, odelta)
-            
+
         # Drawing
-        if self.drawing is not None:
-            self.drawing.update(self)
+        self.update_drawing()
 
         # Trajectories
         self.i += 1
@@ -1979,10 +2024,9 @@ class InvPendulumBicycle(TwoDBicycle):
                 )
 
                 # print(f"{self.id} is walking.")
-        
+
         # Drawing
-        if self.drawing is not None:
-            self.drawing.update(self)
+        self.update_drawing()
 
         # counter and trajectories.
         self.i += 1
