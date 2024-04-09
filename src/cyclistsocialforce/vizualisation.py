@@ -450,6 +450,10 @@ class CarDrawing2D(VehicleDrawing):
         # untested. Setting this to False would actiate it.
         self.has_fixed_dimensions = True
 
+        self.prototype_keypoints = self.calc_prototype_keypoints(
+            car.params.width, car.params.length
+        )
+
         self.make_car_polygon(car.s)
 
     def make_car_polygon(self, s):
@@ -469,14 +473,14 @@ class CarDrawing2D(VehicleDrawing):
         """
         keypoints = self.calc_keypoints(s)
 
-        self.ghandles["bike_polygon"] = PolyCollection(
-            keypoints,
+        self.ghandles["car_polygon"] = PolyCollection(
+            (keypoints,),
             animated=self.params.animated,
             facecolors="gray",
             edgecolors="black",
             zorder=10,
         )
-        self.ax.add_collection(self.ghandles["bike_polygon"])
+        self.ax.add_collection(self.ghandles["car_polygon"])
 
     def calc_keypoints(self, s):
         """Calculate the corners of the polygons.
@@ -500,16 +504,26 @@ class CarDrawing2D(VehicleDrawing):
             R_psi = np.array(
                 [[np.cos(s[2]), -np.sin(s[2])], [np.sin(s[2]), np.cos(s[2])]]
             )
-            keypoints = self.prototype_keypoints()
-            keypoints = R_psi @ self.prototype_keypoints().T + np.array(
+            keypoints = R_psi @ self.prototype_keypoints.T + np.array(
                 [[s[0]], [s[1]]]
             )
+            keypoints = keypoints.T
         else:
             keypoints = [np.reshape(s[-8:], (4, 2))]
             keypoints.append(keypoints[[0, 2], :])
             keypoints.append(keypoints[[1, 3], :])
 
         return keypoints
+
+    def calc_prototype_keypoints(self, w, l):
+        return np.array(
+            (
+                (l / 2, w / 2),
+                (-l / 2, w / 2),
+                (-l / 2, -w / 2),
+                (l / 2, -w / 2),
+            )
+        )
 
     def update(self, car):
         """Updates all elements of the car drawing.
@@ -538,8 +552,8 @@ class CarDrawing2D(VehicleDrawing):
 
         keypoints = self.calc_keypoints(car.s)
 
-        self.ghandles["bike_polygon"].set_verts(keypoints)
-        self.ax.draw_artist(self.ghandles["bike_polygon"])
+        self.ghandles["car_polygon"].set_verts((keypoints,))
+        self.ax.draw_artist(self.ghandles["car_polygon"])
 
 
 class BicycleDrawing2D(VehicleDrawing):

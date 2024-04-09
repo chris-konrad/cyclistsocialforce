@@ -28,6 +28,7 @@ from cyclistsocialforce.utils import (
 )
 from cyclistsocialforce.vehiclecontrol import PIDcontroller
 from cyclistsocialforce.parameters import (
+    CarParameters,
     VehicleParameters,
     BicycleParameters,
     InvPendulumBicycleParameters,
@@ -681,15 +682,7 @@ class Vehicle:
 
 
 class StationaryCar(Vehicle):
-    def __init__(
-        self,
-        s0,
-        userId="unknown",
-        trajectory=(),
-        width=2,
-        length=4,
-        animate=False,
-    ):
+    def __init__(self, s0, userId="unknown", trajectory=(), params=None):
         """Object respresenting a stationary (uncontrolled) car.
 
         The car may move following a prediscribed trajectory.
@@ -705,18 +698,17 @@ class StationaryCar(Vehicle):
             dimension contains the state variable and the second dimension
             contains the evolution of states. If empty, the car will not move.
             The default is ().
-        width : float, optional
-            Width of the vehicle, default is 2 m.
-        length : float, optional
-            Length of the vehicle, default is 4 m.
 
         Returns
         -------
         None.
 
         """
+        if params is None:
+            params = CarParameters()
+
         # call super
-        Vehicle.__init__(self, s0, userId)
+        Vehicle.__init__(self, s0, userId, params=params)
 
         # overwrite empty trajectory property with the prediscribed trajectory.
         self.traj = np.array(trajectory)

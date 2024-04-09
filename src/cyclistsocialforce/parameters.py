@@ -548,6 +548,14 @@ class VehicleParameters:
         return s
 
 
+class CarParameters(VehicleParameters):
+    def __init__(self, length=4, width=2.0, **kwargs):
+        super().__init__(**kwargs)
+
+        self.length = length
+        self.width = width
+
+
 class BicycleParameters(VehicleParameters):
     """Calculate and update the parameters of a bicycle and it's rider.
 
