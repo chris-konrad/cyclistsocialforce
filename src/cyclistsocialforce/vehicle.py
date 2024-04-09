@@ -104,7 +104,7 @@ class Vehicle:
         self.s[2] = limitAngle(s0[2])
 
         # trajectory (list of past states)
-        self.traj = np.zeros((5, int(30 / self.params.t_s)))
+        self.traj = np.zeros((len(s0), int(30 / self.params.t_s)))
         self.traj[:, 0] = self.s
 
         self.saveForces = saveForces
