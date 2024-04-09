@@ -861,19 +861,6 @@ class SocialForceIntersection:
 
             for i in range(0, self.n_bikes):
                 self.vehicles[i].step(Fx[i], Fy[i])
-                # if self.animate:
-                # if self.vehicles[i].hasDrawings[0]:
-                #    self.vehicles[i].updateBikeDrawing(self.ax)
-                # else:
-                #    self.vehicles[i].makeBikeDrawing(
-                #        self.ax,
-                #        drawTrajectory=True,
-                #        drawNextDest=True,
-                #        drawDestQueue=True,
-                #        drawPastDest=True,
-                #        drawForce=True,
-                #        drawName=True,
-                #    )
 
             self.update_road_user_positions()
 
