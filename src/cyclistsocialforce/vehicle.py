@@ -729,7 +729,7 @@ class StationaryCar(Vehicle):
         self.i += 1
 
         # move only of there are still states in the predescribed trajectory.
-        if self.traj.size > 0 and np.shape(self.traj)[1] < self.i:
+        if np.shape(self.traj)[1] > self.i:
             self.s = self.traj[:, self.i]
 
         # Drawing

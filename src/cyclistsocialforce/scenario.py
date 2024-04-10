@@ -23,6 +23,7 @@ from cyclistsocialforce.utils import angleSUMOtoSFM
 import matplotlib.pyplot as plt
 
 from time import time, sleep
+from datetime import timedelta
 
 try:
     import sumolib
@@ -45,6 +46,116 @@ except ImportError:
 
 
 class Scenario:
+    def __init__(
+        self,
+        step_func,
+        t_0=0,
+        t_s=0.01,
+        t_r=0.01,
+        animated=False,
+        ax=None,
+        t_snapshots=(),
+    ):
+        self.t = t_0
+        self.t_s = t_s
+        self.t_r = t_r
+        self.t_0 = t_0
+
+        self.t_wall = time()
+
+        self.i = 0
+
+        self.animated = animated
+        self.ax = ax
+
+        self.step_func = step_func
+
+    def run(self, t_end):
+        print("\nStarting simulation ... \n")
+
+        t_start = time()
+        if self.animated:
+            self.run_animated(t_start, t_end)
+        else:
+            self.run_silent(t_start, t_end)
+
+        t_end = str(timedelta(seconds=time() - t_start))[:-3]
+        print("\n")
+        print(f"Simulation finished after {t_end}")
+
+    def run_silent(self, t_start, t_end):
+        i_end = int(t_end / self.t_s)
+        len_prev_msg = 0
+
+        while self.i < i_end:
+            t = time()
+            self.step()
+            len_prev_msg = self.wait(t, t_start, i_end, len_prev_msg)
+
+    def run_animated(self, t_start, t_end):
+        self.init_animation()
+
+        i_end = int(t_end / self.t_s)
+        len_prev_msg = 0
+
+        while self.i < i_end:
+            t = time()
+            self.step_blitting()
+            len_prev_msg = self.wait(t, t_start, i_end, len_prev_msg)
+
+    def step_blitting(self):
+        self.fig.canvas.restore_region(self.fig_bg)
+
+        self.step()
+
+        self.fig.canvas.blit(self.fig.bbox)
+        self.fig.canvas.flush_events()
+
+    def step(self):
+        self.step_func()
+
+        self.i += 1
+        self.t += self.t_s
+
+    def wait(self, t, t_start, i_end, len_prev_msg):
+        print("\r", end="")
+
+        sim_time = str(timedelta(seconds=self.t))[:11]
+        wall_time = str(timedelta(seconds=(time() - t_start)))[:11]
+
+        dt = time() - t
+        t_sleep = max(0, self.t_r - dt)
+
+        msg = f"Running step {self.i}/{i_end}, Sim. time {sim_time}, Wall time {wall_time}, Wall freq. {int(1/(dt+t_sleep))} Hz "
+        msg += " " * max(len_prev_msg - len(msg), 0)
+        print(msg, end="")
+
+        if dt < self.t_r:
+            sleep(t_sleep)
+
+        return len(msg)
+
+    def init_animation(self):
+        """Initialize the animation of the scenario.
+
+        Uses blitting for faster animation.
+        (https://matplotlib.org/stable/users/explain/animations/blitting.html)
+
+        Parameters
+        ----------
+        None
+
+        """
+        plt.sca(self.ax)
+        self.fig = self.ax.figure
+        self.ax.set_aspect("equal")
+        plt.show(block=False)
+        plt.pause(0.1)
+        self.fig_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+        self.fig.canvas.blit(self.fig.bbox)
+
+
+class SUMOScenario:
     def __init__(
         self,
         network_file,
