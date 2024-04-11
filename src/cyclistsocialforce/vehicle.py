@@ -747,6 +747,12 @@ class StationaryCar(Vehicle):
         # Drawing
         self.update_drawing()
 
+    def calcRepulsiveForce(self, x, y, psi):
+        method = TwoDBicycle.calcRepulsiveForce
+
+        return method(self, x, y, psi)
+
+
 
 class Bicycle(Vehicle):
     """Parent class for all bicycle types. Child of Vehicle.
