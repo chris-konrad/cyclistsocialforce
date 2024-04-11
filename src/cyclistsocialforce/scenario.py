@@ -71,7 +71,7 @@ class Scenario:
         self.step_func = step_func
 
     def run(self, t_end):
-        print("\nStarting simulation ... \n")
+        input("\nPress any key to start simulation ... \n")
 
         t_start = time()
         if self.animated:
