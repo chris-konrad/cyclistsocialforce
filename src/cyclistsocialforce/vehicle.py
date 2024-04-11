@@ -137,6 +137,17 @@ class Vehicle:
         # navigation state
         self.znav = np.array([True, False, False])
 
+        # ego repulsive force
+        self.F = []
+
+    def calcRepulsiveForce(self, x, y, psi):
+        return 0, 0
+
+    def calcDestinationForce(
+        self,
+    ):
+        return 0, 0
+
     def updateNavState(self, stop):
         """Update the navigation state of the vehicle.
 
@@ -716,10 +727,11 @@ class StationaryCar(Vehicle):
         # class of drawings of this car.
         self.drawing_class = CarDrawing2D
 
-    def step(self):
+    def step(self, Fx=None, Fy=None):
         """
         Move the stationary car to the next state given by its predescribed,
-        fixed trajctory
+        fixed trajctory. The paramters Fx and Fy are not used and only
+        exist to ensure function signature compatibility.
 
         Returns
         -------
@@ -734,15 +746,6 @@ class StationaryCar(Vehicle):
 
         # Drawing
         self.update_drawing()
-
-    def calcRepulsiveForce():
-        pass
-
-    def makeDrawing():
-        pass
-
-    def updateDrawing():
-        pass
 
 
 class Bicycle(Vehicle):
@@ -805,9 +808,6 @@ class Bicycle(Vehicle):
         Vehicle.__init__(self, s0, userId, route, saveForces, 0)
 
         self.updateExcentricity()
-
-        # ego repulsive force
-        self.F = []
 
         # has a drawing of a bicycle
         # self.hasDrawings = [False] * 8
