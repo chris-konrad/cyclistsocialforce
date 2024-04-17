@@ -54,6 +54,7 @@ class Scenario:
         t_r=0.01,
         animated=False,
         ax=None,
+        verbose=True,
         t_snapshots=(),
     ):
         self.t = t_0
@@ -68,10 +69,13 @@ class Scenario:
         self.animated = animated
         self.ax = ax
 
+        self.verbose = verbose
+
         self.step_func = step_func
 
     def run(self, t_end):
-        input("\nPress any key to start simulation ... \n")
+        if self.verbose:
+            input("\nPress any key to start simulation ... \n")
 
         t_start = time()
         if self.animated:
@@ -80,8 +84,10 @@ class Scenario:
             self.run_silent(t_start, t_end)
 
         t_end = str(timedelta(seconds=time() - t_start))[:-3]
-        print("\n")
-        print(f"Simulation finished after {t_end}")
+        if self.verbose:
+            print("\n")
+        if self.verbose:
+            print(f"Simulation finished after {t_end}")
 
     def run_silent(self, t_start, t_end):
         i_end = int(t_end / self.t_s)
@@ -118,7 +124,8 @@ class Scenario:
         self.t += self.t_s
 
     def wait(self, t, t_start, i_end, len_prev_msg):
-        print("\r", end="")
+        if self.verbose:
+            print("\r", end="")
 
         sim_time = str(timedelta(seconds=self.t))[:11]
         wall_time = str(timedelta(seconds=(time() - t_start)))[:11]
@@ -126,9 +133,12 @@ class Scenario:
         dt = time() - t
         t_sleep = max(0, self.t_r - dt)
 
-        msg = f"Running step {self.i}/{i_end}, Sim. time {sim_time}, Wall time {wall_time}, Wall freq. {int(1/(dt+t_sleep))} Hz "
-        msg += " " * max(len_prev_msg - len(msg), 0)
-        print(msg, end="")
+        if self.verbose:
+            msg = f"Running step {self.i}/{i_end}, Sim. time {sim_time}, Wall time {wall_time}, Wall freq. {int(1/(dt+t_sleep))} Hz "
+            msg += " " * max(len_prev_msg - len(msg), 0)
+            print(msg, end="")
+        else:
+            msg = ""
 
         if dt < self.t_r:
             sleep(t_sleep)
