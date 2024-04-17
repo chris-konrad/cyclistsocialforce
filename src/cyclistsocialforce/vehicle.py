@@ -511,13 +511,8 @@ class Vehicle:
 
         """
 
-        assert self.drawing is not None, (
-            "Attempted to update the vehicle "
-            "drawing without a drawing beeing initialized! Call add_drawing "
-            "first!"
-        )
-
-        self.drawing.update(self)
+        if self.drawing is not None:
+            self.drawing.update(self)
 
     def plot_states(
         self,
@@ -751,7 +746,6 @@ class StationaryCar(Vehicle):
         method = TwoDBicycle.calcRepulsiveForce
 
         return method(self, x, y, psi)
-
 
 
 class Bicycle(Vehicle):
@@ -1372,10 +1366,13 @@ class TwoDBicycle(Bicycle):
         x0 = self.s[0]
         y0 = self.s[1]
         psi0 = self.s[2]
-        V0 = 7
+        V0 = self.params.f_0
         Vdecay = [15, 0.5]
         b = 1
         a = 10
+
+        if V0 == 0.0:
+            return 0.0, 0.0
 
         psi_rel = psi0 - psi
 
@@ -1386,11 +1383,15 @@ class TwoDBicycle(Bicycle):
         # Vdecay, e = calcPotentialParams(10, 0.5, 2, 10)
 
         # decay
-        Vdecay[0] = 0.5 + 5 * np.sin(psi_rel) ** 2
-        Vdecay[1] = 0.3 + 4.9 * np.sin(psi_rel) ** 2
+        Vdecay[0] = (
+            self.params.sigma_0 + self.params.sigma_1 * np.sin(psi_rel) ** 2
+        )
+        Vdecay[1] = (
+            self.params.sigma_2 + self.params.sigma_3 * np.sin(psi_rel) ** 2
+        )
 
         # vrel = ((self.s[3]/5)**0.1 + 10)/11
-        e = e - 0.7 * np.sin(psi_rel) ** 2
+        e = self.params.e_0 - self.params.e_1 * np.sin(psi_rel) ** 2
 
         # coordinate transformations
         x0 = x - x0
