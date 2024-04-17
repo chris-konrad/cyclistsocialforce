@@ -9,7 +9,9 @@ Classes managing the parameter sets of the model and the visualisation.
 
 import numpy as np
 import control as ct
+import warnings
 
+from cyclistsocialforce.utils import thresh
 from pypaperutils.design import TUDcolors
 
 
@@ -366,10 +368,13 @@ class RoadElementParameters:
 
 
 class VehicleParameters:
-    """Calculate and update the parameters of a vehicle.
+    """Base class for all Vehicle-specific paramter classes.
+    Calculate and update the parameters of a vehicle.
 
     Provides tactical parameters.
     """
+
+    LIMIT_PREC = 1e-10
 
     def __init__(
         self,
@@ -379,6 +384,16 @@ class VehicleParameters:
         v_max_stop: float = 0.1,
         v_max_harddecel: float = 2.5,
         hfov: float = 2 * np.pi,
+        calib_mode=False,
+        verbose=True,
+        # repulsive force field parameters
+        f_0: float = 7.0,
+        e_0: float = 0.995,
+        e_1: float = 0.7,
+        sigma_0: float = 0.5,
+        sigma_1: float = 5.0,
+        sigma_2: float = 0.3,
+        sigma_3: float = 4.9,
     ) -> None:
         """Create the parameter set of a default vehicle.
 
@@ -422,6 +437,10 @@ class VehicleParameters:
         self.v_max_stop = v_max_stop
         self.v_max_harddecel = v_max_harddecel
         self.hfov = hfov
+
+        self._e_1 = 0
+        self.calib_mode = calib_mode
+        self.verbose = verbose
 
     # ---- PROPERTIES ----
 
@@ -530,6 +549,125 @@ class VehicleParameters:
             )
         self._hfov = hfov
 
+    @property
+    def f_0(self) -> float:
+        return self._f_0
+
+    @f_0.setter
+    def f_0(self, f_0) -> None:
+        if not isinstance(f_0, float):
+            raise TypeError("f_0 must be a float.")
+        if not f_0 >= 0:
+            msg = f"f_0 must be >=0, instead it was {f_0:.2f}"
+            if self.calib_mode:
+                warnings.warn(msg)
+                f_0 = self.LIMIT_PREC
+            else:
+                raise ValueError(msg)
+        self._f_0 = f_0
+
+    @property
+    def e_0(self) -> float:
+        return self._e_0
+
+    @e_0.setter
+    def e_0(self, e_0) -> None:
+        if not isinstance(e_0, float):
+            raise TypeError("e_0 must be a float.")
+        if not self.e_1 < e_0 <= 1:
+            msg = f"e_0 must be in ]e_1={self.e_1:.2f}, 1], instead it was {e_0:.2f}"
+            if self.calib_mode:
+                warnings.warn(msg)
+                e_0 = thresh(e_0, (self.e_1 * 1.001, 0.99999))
+            else:
+                raise ValueError(msg)
+        self._e_0 = e_0
+
+    @property
+    def e_1(self) -> float:
+        return self._e_1
+
+    @e_1.setter
+    def e_1(self, e_1) -> None:
+        if not isinstance(e_1, float):
+            raise TypeError("e_1 must be a float.")
+        if not 0 <= e_1 < self.e_0:
+            msg = f"e_1 must be in [0,e_0={self.e_0:.2f}[, instead it was {e_1:.2f}"
+            if self.calib_mode:
+                warnings.warn(msg)
+                e_1 = thresh(e_1, (0, 0.99999 * self.e_0))
+            else:
+                raise ValueError(msg)
+        self._e_1 = e_1
+
+    @property
+    def sigma_0(self) -> float:
+        return self._sigma_0
+
+    @sigma_0.setter
+    def sigma_0(self, sigma_0) -> None:
+        if not isinstance(sigma_0, float):
+            raise TypeError("sigma_0 must be a float.")
+        if not sigma_0 >= 0:
+            msg = f"sigma_0 must be >=0, instead it was {sigma_0:.2f}"
+            if self.calib_mode:
+                warnings.warn(msg)
+                sigma_0 = self.LIMIT_PREC
+            else:
+                raise ValueError(msg)
+        self._sigma_0 = sigma_0
+
+    @property
+    def sigma_1(self) -> float:
+        return self._sigma_1
+
+    @sigma_1.setter
+    def sigma_1(self, sigma_1) -> None:
+        if not isinstance(sigma_1, float):
+            raise TypeError("sigma_1 must be a float.")
+        if not sigma_1 >= 0:
+            msg = f"sigma_1 must be >=0, instead it was {sigma_1:.2f}"
+            if self.calib_mode:
+                warnings.warn(msg)
+                sigma_1 = self.LIMIT_PREC
+            else:
+                raise ValueError(msg)
+        self._sigma_1 = sigma_1
+
+    @property
+    def sigma_2(self) -> float:
+        return self._sigma_2
+
+    @sigma_2.setter
+    def sigma_2(self, sigma_2) -> None:
+        if not isinstance(sigma_2, float):
+            raise TypeError("sigma_2 must be a float.")
+        if not 0 < sigma_2 < self.sigma_0:
+            msg = f"sigma_2 must be in [0,sigma_1={self.sigma_0:.2f}[, instead it was {sigma_2:.2f}"
+            if self.calib_mode:
+                warnings.warn(msg)
+                sigma_2 = thresh(sigma_2, (0, self.sigma_0 - self.LIMIT_PREC))
+            else:
+                raise ValueError(msg)
+        self._sigma_2 = sigma_2
+
+    @property
+    def sigma_3(self) -> float:
+        return self._sigma_3
+
+    @sigma_3.setter
+    def sigma_3(self, sigma_3) -> None:
+        if not isinstance(sigma_3, float):
+            raise TypeError("sigma_3 must be a float.")
+        if not 0 < sigma_3 < self.sigma_1:
+            msg = f"sigma_3 must be in [0,sigma_1={self.sigma_1:.2f}[, instead it was {sigma_3:.2f}"
+            if self.calib_mode:
+                warnings.warn(msg)
+                sigma_0 = thresh(sigma_3, (0, self.sigma_1 - self.LIMIT_PREC))
+            else:
+                raise ValueError(msg)
+        self._sigma_3 = sigma_3
+
     # ---- METHODS ----
 
     def __str__(self):
@@ -549,7 +687,12 @@ class VehicleParameters:
 
 
 class CarParameters(VehicleParameters):
-    def __init__(self, length=4, width=2.0, **kwargs):
+    def __init__(
+        self,
+        length=4,
+        width=2.0,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         self.length = length
@@ -1012,7 +1155,7 @@ class InvPendulumBicycleParameters(BicycleParameters):
         f_0: float = 7.0,
         e_0: float = 0.995,
         e_1: float = 0.7,
-        sigma_0: float = 3.0,
+        sigma_0: float = 0.5,
         sigma_1: float = 5.0,
         sigma_2: float = 0.3,
         sigma_3: float = 4.9,
@@ -1157,6 +1300,13 @@ class InvPendulumBicycleParameters(BicycleParameters):
             d_arrived_stop=d_arrived_stop,
             v_max_stop=v_max_stop,
             v_max_harddecel=v_max_harddecel,
+            f_0=f_0,
+            e_0=e_0,
+            e_1=e_1,
+            sigma_0=sigma_0,
+            sigma_1=sigma_1,
+            sigma_2=sigma_2,
+            sigma_3=sigma_3,
         )
 
         # Bike dimensions
@@ -1175,15 +1325,6 @@ class InvPendulumBicycleParameters(BicycleParameters):
         #
         self.v_max_walk = v_max_walk
         self.delta_max_walk = delta_max_walk
-
-        # repulsive force fields
-        self.f_0 = f_0
-        self.e_0 = e_0
-        self.e_1 = e_1
-        self.sigma_0 = sigma_0
-        self.sigma_1 = sigma_1
-        self.sigma_2 = sigma_2
-        self.sigma_3 = sigma_3
 
         # Pysical constants
         self.g = g
@@ -1377,125 +1518,6 @@ class InvPendulumBicycleParameters(BicycleParameters):
                              {delta_max_walk:.2f}"
             )
         self._delta_max_walk = delta_max_walk
-
-    @property
-    def f_0(self) -> float:
-        return self._f_0
-
-    @v_max_walk.setter
-    def f_0(self, f_0) -> None:
-        if hasattr(self, "_f_0"):
-            raise AttributeError("f_0 is immutable.")
-        if not isinstance(f_0, float):
-            raise TypeError("f_0 must be a float.")
-        if not f_0 >= 0:
-            raise ValueError(
-                f"f_0 must be >=0, instead it was \
-                             {f_0:.2f}"
-            )
-        self._f_0 = f_0
-
-    @property
-    def e_0(self) -> float:
-        return self._e_0
-
-    @e_0.setter
-    def e_0(self, e_0) -> None:
-        if hasattr(self, "_e_0"):
-            raise AttributeError("e_0 is immutable.")
-        if not isinstance(e_0, float):
-            raise TypeError("e_0 must be a float.")
-        if not 0 < e_0 < 1:
-            raise ValueError(
-                f"e_0 must be in ]0,1[, instead it was \
-                             {e_0:.2f}"
-            )
-        self._e_0 = e_0
-
-    @property
-    def e_1(self) -> float:
-        return self._e_1
-
-    @e_1.setter
-    def e_1(self, e_1) -> None:
-        if hasattr(self, "_e_1"):
-            raise AttributeError("e_1 is immutable.")
-        if not isinstance(e_1, float):
-            raise TypeError("e_1 must be a float.")
-        if not 0 < e_1 < 1:
-            raise ValueError(
-                f"e_1 must be in ]0,1[, instead it was \
-                             {e_1:.2f}"
-            )
-        self._e_1 = e_1
-
-    @property
-    def sigma_0(self) -> float:
-        return self._sigma_0
-
-    @sigma_0.setter
-    def sigma_0(self, sigma_0) -> None:
-        if hasattr(self, "_sigma_0"):
-            raise AttributeError("sigma_0 is immutable.")
-        if not isinstance(sigma_0, float):
-            raise TypeError("sigma_0 must be a float.")
-        if not sigma_0 >= 0:
-            raise ValueError(
-                f"sigma_0 must be >=0, instead it was \
-                             {sigma_0:.2f}"
-            )
-        self._sigma_0 = sigma_0
-
-    @property
-    def sigma_1(self) -> float:
-        return self._sigma_1
-
-    @sigma_1.setter
-    def sigma_1(self, sigma_1) -> None:
-        if hasattr(self, "_sigma_1"):
-            raise AttributeError("sigma_1 is immutable.")
-        if not isinstance(sigma_1, float):
-            raise TypeError("sigma_1 must be a float.")
-        if not sigma_1 >= 0:
-            raise ValueError(
-                f"sigma_1 must be >=0, instead it was \
-                             {sigma_1:.2f}"
-            )
-        self._sigma_1 = sigma_1
-
-    @property
-    def sigma_2(self) -> float:
-        return self._sigma_2
-
-    @sigma_2.setter
-    def sigma_2(self, sigma_2) -> None:
-        if hasattr(self, "_sigma_2"):
-            raise AttributeError("sigma_2 is immutable.")
-        if not isinstance(sigma_2, float):
-            raise TypeError("sigma_2 must be a float.")
-        if not sigma_2 >= 0:
-            raise ValueError(
-                f"sigma_2 must be >=0, instead it was \
-                             {sigma_2:.2f}"
-            )
-        self._sigma_2 = sigma_2
-
-    @property
-    def sigma_3(self) -> float:
-        return self._sigma_3
-
-    @sigma_3.setter
-    def sigma_3(self, sigma_3) -> None:
-        if hasattr(self, "_sigma_3"):
-            raise AttributeError("sigma_3 is immutable.")
-        if not isinstance(sigma_3, float):
-            raise TypeError("sigma_3 must be a float.")
-        if not sigma_3 >= 0:
-            raise ValueError(
-                f"sigma_3 must be >=0, instead it was \
-                             {sigma_3:.2f}"
-            )
-        self._sigma_3 = sigma_3
 
     # ---- METHODS ----
 
