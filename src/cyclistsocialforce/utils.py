@@ -158,11 +158,37 @@ def polar2cart(rho, phi):
 
 
 def thresh(x, minmax):
-    if x < minmax[0]:
-        x = minmax[0]
-    elif x > minmax[1]:
-        x = minmax[1]
-    return x
+    """Threshold the values in x to the limits minmax.
+
+    x_out will be in [minmax[0], minmax[1]]
+
+    Parameters
+    ----------
+    x : array-like
+        Data to be thresholded.
+    minmax : array-like
+        Thresholds, wherew minmax[0] is the minimum threshold and minmax[1] the
+        maximum.
+
+    Returns
+    -------
+    x_out : array-like
+        Thresholded data in [minmax[0], minmax[1]].
+
+    """
+
+    assert (
+        minmax[0] <= minmax[1]
+    ), f"Minimum must be smaller then the maximum! Instead it was [{minmax[0]}, {minmax[1]}]"
+    return np.maximum(np.minimum(x, minmax[1]), minmax[0])
+
+
+# def thresh(x, minmax):
+#    if x < minmax[0]:
+#        x = minmax[0]
+#    elif x > minmax[1]:
+#        x = minmax[1]
+#    return x
 
 
 class DiffEquation:
