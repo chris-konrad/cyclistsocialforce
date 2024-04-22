@@ -687,11 +687,14 @@ class Vehicle:
         return axes
 
 
-class StationaryCar(Vehicle):
-    def __init__(self, s0, userId="unknown", trajectory=(), params=None):
-        """Object respresenting a stationary (uncontrolled) car.
+class StationaryVehicle(Vehicle):
+    def __init__(self, s0, userId="unknown", trajectory=(), params=None, drawing_class=CarDrawing2D):
+        """Object respresenting a stationary (uncontrolled or externally controlled) 
+        vehicle.
 
-        The car may move following a prediscribed trajectory.
+        The car may move following a prediscribed trajectory in it's traj 
+        property. To externally control this vehicle, populate its 
+        traj property with states.
 
         Parameters
         ----------
@@ -711,16 +714,17 @@ class StationaryCar(Vehicle):
 
         """
         if params is None:
-            params = CarParameters()
+            params = VehicleParameters()
 
         # call super
         Vehicle.__init__(self, s0, userId, params=params)
 
         # overwrite empty trajectory property with the prediscribed trajectory.
-        self.traj = np.array(trajectory)
+        if len(trajectory) > 0:
+            self.traj = np.array(trajectory)
 
         # class of drawings of this car.
-        self.drawing_class = CarDrawing2D
+        self.drawing_class = drawing_class
 
     def step(self, Fx=None, Fy=None):
         """
