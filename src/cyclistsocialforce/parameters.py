@@ -431,6 +431,9 @@ class VehicleParameters:
 
 
         """
+        self.calib_mode = calib_mode
+        self.verbose = verbose
+
         self.t_s = t_s
         self.d_arrived_inter = d_arrived_inter
         self.d_arrived_stop = d_arrived_stop
@@ -438,9 +441,14 @@ class VehicleParameters:
         self.v_max_harddecel = v_max_harddecel
         self.hfov = hfov
 
-        self._e_1 = 0
-        self.calib_mode = calib_mode
-        self.verbose = verbose
+        self._e_1 = 0  # set this before the first e_0 assignment, otherwise the value check of e_0 does not work.
+        self.f_0 = f_0
+        self.e_0 = e_0
+        self.e_1 = e_1
+        self.sigma_0 = sigma_0
+        self.sigma_1 = sigma_1
+        self.sigma_2 = sigma_2
+        self.sigma_3 = sigma_3
 
     # ---- PROPERTIES ----
 
@@ -643,7 +651,7 @@ class VehicleParameters:
         if not isinstance(sigma_2, float):
             raise TypeError("sigma_2 must be a float.")
         if not 0 < sigma_2 < self.sigma_0:
-            msg = f"sigma_2 must be in [0,sigma_1={self.sigma_0:.2f}[, instead it was {sigma_2:.2f}"
+            msg = f"sigma_2 must be in [0,sigma_0={self.sigma_0:.2f}[, instead it was {sigma_2:.2f}"
             if self.calib_mode:
                 warnings.warn(msg)
                 sigma_2 = thresh(sigma_2, (0, self.sigma_0 - self.LIMIT_PREC))
@@ -733,6 +741,7 @@ class BicycleParameters(VehicleParameters):
         d_arrived_inter: float = 2.0,
         d_arrived_stop: float = 2.0,
         v_max_harddecel: float = 2.5,
+        **kwargs,
     ) -> None:
         """Create the parameter set of a default bicycle.
 
@@ -810,6 +819,7 @@ class BicycleParameters(VehicleParameters):
             v_max_stop=v_max_stop,
             v_max_harddecel=v_max_harddecel,
             hfov=hfov,
+            **kwargs,
         )
 
         # Dynamic v_max_ridingter default values
