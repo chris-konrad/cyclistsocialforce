@@ -52,8 +52,8 @@ class Scenario:
         t_0=0,
         t_s=0.01,
         t_r=0.01,
-        animated=False,
-        ax=None,
+        animate=False,
+        axes=None,
         verbose=True,
         t_snapshots=(),
     ):
@@ -66,8 +66,8 @@ class Scenario:
 
         self.i = 0
 
-        self.animated = animated
-        self.ax = ax
+        self.animate = animate
+        self.ax = axes
 
         self.verbose = verbose
 
@@ -78,7 +78,7 @@ class Scenario:
             input("\nPress any key to start simulation ... \n")
 
         t_start = time()
-        if self.animated:
+        if self.animate:
             self.run_animated(t_start, t_end)
         else:
             self.run_silent(t_start, t_end)
