@@ -50,26 +50,27 @@ class Vehicle:
     REQUIRED_PARAMS = ("d_arrived_inter", "hfov")
 
     def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
+        self, s0, userId="unknown", route=(), saveForces=False, params=None, 
+        dest_force_func = None, rep_force_func = None, dyn_step_func = None, drawing_class=VehicleDrawing, uncontrolled = False, 
+        uncontrolled_traj = ()
     ):
         """Create a new Vehicle.
 
-        Creates a vehicle object designed to model the planar dynamics of a
-        vehicle in 2D space and calculate corresponding social forces according
-        to the Cyclist Social Force concept (CSF)
-
-        If a route is provided, an intersection object that owns this
-        vehicle will be calculating destinations for crossing an intersection
-        according to this route. A route must consist of SUMO edge ids.
-
+        Creates a generic vehicle that may be equipped with custom dynamics,
+        repulsive and destination forces. 
+        
         Definition of state variables:
             x: position [m] in the global coordinate frame
             y: position [m] in the global coordinate frame
-            theta: heading [rad] relative to the positive x-axis in global
+            psi: heading [rad] relative to the positive x-axis in global
                    frame. Positive angles go counterclockwise.
             v: longitudinal speed [m/s] of the vehicle
             delta: steer angle relative to the heading. Positive angles go
                  counterclockwise.
+
+        For SUMO: If a route is provided, an intersection object that owns this
+        vehicle will be calculating destinations for crossing an intersection
+        according to this route. A route must consist of SUMO edge ids.
 
         Parameters
         ----------
@@ -88,6 +89,37 @@ class Vehicle:
             VehicleParams object providing a parameter set for this vehicle.
             When no parameter object is provided, the vehicle is instantiated
             with default parameters.
+        dyn_step_func : function, optional
+            Create a vehicle with a custom dynamic model by passing a 
+            step function with the signature None = dyn_step_func(Vehicle, F1, F2).
+        rep_force_func : function, optional
+            Create a vehicle with a custom repulsive force by passing a handle 
+            with the signature F1, F2 = rep_force_func(Vehicle, x, y, psi), 
+            where Vehicle is this vehicle and x, y, and psi are the locations 
+            and orientations of other road users to be evaluated. F1, and F2 
+            are the two dimensions of the resulting force (Fx and Fy or Fv, 
+            Fpsi). If it uses parameters, these should be taken from
+            Vehicle.params.rep_force["param_name"].
+        dest_force_func : function, optional
+            Create a vehicle with custom destination force by passing a handle 
+            with the signature F1, F2 = dest_force_func(Vehicle), 
+            where Vehicle is this vehicle. F1, and F2 are the two dimensions of 
+            the resulting force (Fx and Fy or Fv and Fpsi). If it uses 
+            parameters, these should be taken from 
+            Vehicle.params.dest_force["param_name"].
+        drawing_class : cyclistsocialforce.visualization.VehicleDrawing, optional
+            The class of drawing that this vehicle is represented by in an
+            animation. The default is VehicleDrawing. 
+        uncontrolled : boolean, optional
+            Creates an uncontrolled vehicle that follows a prediscribed 
+            trajectory in its traj property rather then reacting to social 
+            forces. To externally control this vehicle, make sure that traj
+            is populated correctly before any call to Vehicle.step(). The 
+            default is False
+        uncontrolled_traj : list, optional
+            Prediscribed trajectory given as a list of vehicle states for the
+            uncontrolled vehicle to follow. Is only used if uncontrolled is 
+            True. If empty, the vehicle does not move. The default is (). 
         """
 
         # set parameters if not already set by a child.
@@ -139,14 +171,134 @@ class Vehicle:
 
         # ego repulsive force
         self.F = []
-
+        
+        # destination force, repulsive force and dynamic model step functions
+        self.dest_force_func = dest_force_func
+        self.rep_force_func = rep_force_func
+        self.dyn_step_func = dyn_step_func
+        
+        # set to uncontrolled
+        if uncontrolled:
+            self.set_uncontrolled(uncontrolled_traj)
+            
+    @staticmethod
+    def step_follow_traj(Vehicle, F1=None, F2=None):
+        """
+        Move the uncontrolled vehicle to the next state given by its 
+        predescribed fixed trajctory. The paramters Fx and Fy are ignored.
+        
+        """
+        # move only of there are still states in the predescribed trajectory.
+        if np.shape(Vehicle.traj)[1] > Vehicle.i+1:
+            Vehicle.s = Vehicle.traj[:, Vehicle.i+1]
+    
+    @staticmethod
+    def empty_dest_func(Vehicle):
+        """An empty destination force function that returns nothing for 
+        uncontrolled vehicles.
+        """
+        return 0, 0
+        
     def calcRepulsiveForce(self, x, y, psi):
-        return 0, 0
+        """
+        Calculate the repulsive force of this vehicle using its 
+        rep_force_func property.
+        
+        Parameters
+        ----------
+        x : array-like
+            x locations of the road users experiencing a repulsive force 
+            coming from this vehicle.
+        y : array-like
+            y locations of the road users experiencing a repulsive force 
+            coming from this vehicle.
+        psi : array-like
+            Orientations of the road users experiencing a repulsive force 
+            coming from this vehicle.
 
-    def calcDestinationForce(
-        self,
-    ):
-        return 0, 0
+        Returns
+        -------
+        F1 : float
+            First component of the repulsive force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        F2 : float
+            Second component of the repulsive force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        """
+        if self.rep_force_func is not None:
+            return self.rep_force_func(self, x, y, psi)
+        else:
+            return 0, 0
+
+    def calcDestinationForce(self):
+        """
+        Calculate the destination force of this vehicle using its 
+        dest_force_func property.
+
+        Returns
+        -------
+        F1 : float
+            First component of the desination force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        F2 : float
+            Second component of the desination force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        """
+        if self.dest_force_func is not None or not self.uncontrolled:
+            self.updateDestination()
+            return self.dest_force_func(self)
+        else:
+            return 0, 0
+        
+    def step(self, F1=0, F2=0):
+        """
+        Advance the vehicle by one simulation step using its dyn_step_func 
+        property. 
+
+        Parameters
+        ----------
+        F1 : float, optional
+            First component of the driving force. The default is 0.
+        F2 : float, optional
+            Second component of the driving force. The default is 0.
+
+        """
+        
+        # model dynamics
+        if self.dyn_step_func is not None:
+            self.dyn_step_func(self, F1, F2)
+        
+        # trajectory and counter
+        self.i += 1
+        self.traj[:, self.i] = self.s
+
+        # drawing
+        self.update_drawing()
+        
+    def set_uncontrolled(self, traj=()):
+        """
+        Stop controlling the vehicle through social forces.
+                        
+        Instead, the vehicle follows a prediscribed trajectory in it's traj 
+        property. To externally control this vehicle, leave traj empty and make
+        sure that the next step is populated before a to Vehicle.step().
+
+        Parameters
+        ----------
+        traj : array-like, optional
+            List or array of consecutive vehicle states where the first
+            dimension contains the state variable and the second dimension
+            contains the evolution of states. If empty, the car will not move.
+            The default is ().
+        """
+        
+        self.uncontrolled = True
+        if len(traj)>0:
+            self.traj = np.c_[self.traj[:,:self.i], traj]
+            
+        self.dyn_step_func = self.step_follow_traj
+        self.dest_force_func = self.empty_dest_func
+        
 
     def updateNavState(self, stop):
         """Update the navigation state of the vehicle.
@@ -685,6 +837,50 @@ class Vehicle:
         axes[-1].legend()
 
         return axes
+    
+class UncontrolledVehicle(Vehicle):
+    def __init__(self, s0, traj=(), **kwargs):
+        """Object respresenting a stationary (uncontrolled or externally 
+        controlled) vehicle.
+                        
+        The follows the prediscribed trajectory in it's traj property. To 
+        externally control this vehicle, leave traj empty on initialisation 
+        and make sure that the next step is populated before a call to
+        UncontrolledVehicle.step().
+
+        Parameters
+        ----------
+        s0 : List of float
+            List containing the initial vehicle state (x, y, psi, v, ...).
+        traj : array-like, optional
+            List or array of consecutive vehicle states where the first
+            dimension contains the state variable and the second dimension
+            contains the evolution of states. If empty, the car will not move.
+            The default is ().
+        **kwargs 
+            Any keyword argument of cyclistsocialforce.vehicle.Vehicle
+        """
+        
+        kwargs = dict(kwargs, dyn_step_func = self.step_follow_traj)
+        
+        # call super
+        Vehicle.__init__(self, s0, **kwargs)
+        
+        # overwrite empty trajectory property with the prediscribed trajectory.
+        if len(traj) > 0:
+            self.traj = np.array(traj)
+            
+            
+    def step_follow_traj(self, F1=None, F2=None):
+        """
+        Move the uncontrolled vehicle to the next state given by its 
+        predescribed fixed trajctory. The paramters Fx and Fy are ignored.
+        
+        """
+        # move only of there are still states in the predescribed trajectory.
+        if np.shape(self.traj)[1] > self.i+1:
+            self.s = self.traj[:, self.i+1]
+        
 
 
 class StationaryVehicle(Vehicle):
