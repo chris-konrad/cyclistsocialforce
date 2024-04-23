@@ -386,6 +386,8 @@ class VehicleParameters:
         hfov: float = 2 * np.pi,
         calib_mode=False,
         verbose=True,
+        rep_force={},
+        dest_force={},
         # repulsive force field parameters
         f_0: float = 7.0,
         e_0: float = 0.995,
@@ -440,6 +442,9 @@ class VehicleParameters:
         self.v_max_stop = v_max_stop
         self.v_max_harddecel = v_max_harddecel
         self.hfov = hfov
+        
+        self.rep_force = rep_force
+        self.dest_force = dest_force
 
         self._e_1 = 0  # set this before the first e_0 assignment, otherwise the value check of e_0 does not work.
         self.f_0 = f_0
