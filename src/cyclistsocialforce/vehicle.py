@@ -945,8 +945,10 @@ class WhippleCarvalloBicycle(Vehicle):
         
         assert len(s0) == 6, "s0 has to have six elements: (x,y,psi,v)!"
         
-
         Vehicle.__init__(self, s0, **kwargs)
+
+        if isinstance(self.params, VehicleParameters):
+            self.params = InvPendulumBicycleParameters()
 
         # init dynamics: particle dynamics model with Fx/y input
         self.dynamics = WhippleCarvalloDynamics(self)
