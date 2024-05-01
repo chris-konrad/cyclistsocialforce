@@ -9,7 +9,7 @@ import numpy as np
 import control as ct
 import bicycleparameters as bp
 
-from cyclistsocialforce.utils import limitAngle, thresh
+from cyclistsocialforce.utils import limitAngle, thresh, cart2polar
 from cyclistsocialforce.vehiclecontrol import PIDcontroller
 
 class Dynamics():
@@ -25,7 +25,7 @@ class Dynamics():
 class WhippleCarvalloDynamics(Dynamics):
     
     PATH = "U:\PhDConnectedVRU\Projects\external\BicycleParameters\data"
-    BIKE = "Browser"
+    BIKE = "Benchmark"
     
     def __init__(self, bicycle, poles = (-18 + 0j, -19 + 0, -20 + 0j, -6 + 3j, -6 - 3j)):
         
@@ -76,7 +76,7 @@ class WhippleCarvalloDynamics(Dynamics):
     def step(self, bicycle, Fx, Fy):
         
         # update statespace parameters with current speed
-        self.update(np.sqrt(Fx**2+Fy**2))
+        self.update(bicycle.s[3])
 
         # absolute force angle
         psi_d = np.arctan2(Fy, Fx)
@@ -186,10 +186,13 @@ class ParticleDynamicsXY(Dynamics):
         
         self.x = results.outputs[:,1]
         
+        temp, psi_i = cart2polar((results.outputs[0,1] - Vehicle.s[0]),
+                                 (results.outputs[1,1] - Vehicle.s[1]))
+        
         Vehicle.s[0:2] = results.outputs[0:2,1]
-        Vehicle.s[2] = np.arctan((results.outputs[1,1] - results.outputs[1,0])/
-                                 (results.outputs[0,1] - results.outputs[0,0]))
+        Vehicle.s[2] = psi_i
         Vehicle.s[3] = np.sqrt(np.sum(results.outputs[2:4,1]**2))
+        
         
         
 def from_pole_placement(A, B, C, D, poles, t_end=10, t_s=0.01):
