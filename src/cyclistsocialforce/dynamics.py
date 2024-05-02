@@ -12,6 +12,10 @@ import bicycleparameters as bp
 from cyclistsocialforce.utils import limitAngle, thresh, cart2polar
 from cyclistsocialforce.vehiclecontrol import PIDcontroller
 
+from bicycleparameters.parameter_dicts import meijaard2007_browser_jason
+from bicycleparameters.parameter_sets import Meijaard2007ParameterSet
+from bicycleparameters.models import Meijaard2007Model
+
 class Dynamics():
     
     def __init__(self, Vehicle):
@@ -27,16 +31,16 @@ class WhippleCarvalloDynamics(Dynamics):
     PATH = "U:\PhDConnectedVRU\Projects\external\BicycleParameters\data"
     BIKE = "Benchmark"
     
-    def __init__(self, bicycle, poles = (-18 + 0j, -19 + 0, -20 + 0j, -6 + 3j, -6 - 3j)):
+    def __init__(self, bicycle):
         
-        self.poles = poles
+        self.bp_model = bicycle.params.bp_model
+        self.poles = bicycle.params.poles
         
         #get transition and input matrices from Jason Moore's toolbox
-        self.bpbike = bp.Bicycle(self.BIKE, pathToData=self.PATH)
+        #self.bpbike = bp.Bicycle(self.BIKE, pathToData=self.PATH)
         
         #get geometry parameters
-        params = bp.io.remove_uncertainties(self.bpbike.parameters['Benchmark'])
-        self.l = params['w']
+        self.l = bicycle.params.l
         
         #initialize state space system
         self.update(bicycle.s[3])
@@ -53,20 +57,19 @@ class WhippleCarvalloDynamics(Dynamics):
         )
         
     def update(self, v):
-        Awc, Bwc = self.bpbike.state_space(v, nominal=True)
+        Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
         
         #add yaw dynamics
         A = np.zeros((5,5))
         A[:4,:4] = Awc
-        A[4,0] = v / self.l
+        A[4,1] = v / self.l
         
         B = np.zeros((5,1))
         B[:4,0] = Bwc[:,1]  #disregard roll torque input
         
-
-        
         #output
-        C = np.array([[1,0,1,0,1]])
+        C = np.zeros((1,A.shape[1]))
+        C[0,4] = 1
         D = np.zeros((C.shape[0], B.shape[1]))
     
         #pole placement
@@ -86,14 +89,15 @@ class WhippleCarvalloDynamics(Dynamics):
             self.sys,
             T=np.array([0, bicycle.params.t_s]),
             X0=self.x,
+            return_x=True,
             U=np.ones(2) * psi_d,
             squeeze=False,
         )
-        self.x = results.outputs[:,1]
+        self.x = results.states[:,1]
         
-        bicycle.s[2] = limitAngle(results.outputs[4,1])
-        bicycle.s[4] = limitAngle(results.outputs[0,1])
-        bicycle.s[5] = limitAngle(results.outputs[2,1])
+        bicycle.s[2] = limitAngle(results.states[4,1])
+        bicycle.s[4] = limitAngle(results.states[1,1])
+        bicycle.s[5] = limitAngle(results.states[0,1])
         
         self.step_pos(bicycle, Fx, Fy)
         
@@ -182,12 +186,13 @@ class ParticleDynamicsXY(Dynamics):
             T=np.array([0, Vehicle.params.t_s]),
             X0=self.x,
             U=np.ones(2) * np.array(((Fx,),(Fy,))),
+            return_x=True,
             squeeze=False)
         
-        self.x = results.outputs[:,1]
+        self.x = results.states[:,1]
         
-        temp, psi_i = cart2polar((results.outputs[0,1] - Vehicle.s[0]),
-                                 (results.outputs[1,1] - Vehicle.s[1]))
+        temp, psi_i = cart2polar((results.states[2,1]),
+                                 (results.states[3,1]))
         
         Vehicle.s[0:2] = results.outputs[0:2,1]
         Vehicle.s[2] = psi_i
@@ -195,8 +200,37 @@ class ParticleDynamicsXY(Dynamics):
         
         
         
-def from_pole_placement(A, B, C, D, poles, t_end=10, t_s=0.01):
+def from_pole_placement(A, B, C, D, poles, t_end=10.0, t_s=0.01):
+    """
+    Create a statespace dynamics object uing pole placement.
 
+    Parameters
+    ----------
+    A : array-like
+        System matrix.
+    B : array-like
+        Input matrix.
+    C : array-like
+        Output matrix. C has to be shaped (1, n_states) and may have only
+        one elements set to 1. All other have to be 0. (MISO-system). Set the
+        state that should follow the reference input to one. 
+    D : array-like
+        Feedthrough matrix.
+    poles : array-like
+        Desired poles of the sustem.
+    t_end : float, optional
+        Simulation time for determining the input gain matrix. 
+        The default is 10.0.
+    t_s : TYPE, optional
+        Simulation step time for determining the input gain matrix. 
+        The default is 0.01.
+
+    Returns
+    -------
+    control.StateSpace
+        Statespace object.
+
+    """
 
     assert (
         np.linalg.matrix_rank(ct.ctrb(A, B)) == A.shape[0]
@@ -218,10 +252,6 @@ def from_pole_placement(A, B, C, D, poles, t_end=10, t_s=0.01):
     K_u = np.zeros((B.shape[1], B.shape[1]))
     for i in range(B.shape[1]):
         K_u[i,i] = 1/results.outputs[i,-1]
-
-    # final controlled system
-    C = np.identity(A.shape[0])
-    D = np.zeros((C.shape[0], B.shape[1]))
     
     return ct.StateSpace(A - B @ K_x, B @ K_u, C, D)
         
