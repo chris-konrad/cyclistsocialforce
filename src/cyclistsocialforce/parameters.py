@@ -14,6 +14,10 @@ import warnings
 from cyclistsocialforce.utils import thresh
 from pypaperutils.design import TUDcolors
 
+from bicycleparameters.parameter_dicts import meijaard2007_browser_jason
+from bicycleparameters.parameter_sets import Meijaard2007ParameterSet
+from bicycleparameters.models import Meijaard2007Model
+
 
 class VehicleDrawingParameters:
     """Class storing and maintaining the parameters for a vehicle drawing.
@@ -388,6 +392,7 @@ class VehicleParameters:
         verbose=True,
         rep_force={},
         dest_force={},
+        dynamics={},
         # repulsive force field parameters
         f_0: float = 7.0,
         e_0: float = 0.995,
@@ -1116,6 +1121,48 @@ class BicycleParameters(VehicleParameters):
                              {k_p_delta:.2f}"
             )
         self._k_p_delta = k_p_delta
+        
+class WhippleCarvalloBicycleParameters(BicycleParameters):
+    
+    def __init__(self, 
+                 bicycleParameterDict = meijaard2007_browser_jason, 
+                 poles = (-18 + 0j, -19 + 0, -20 + 0j, -6 + 3j, -6 - 3j),
+                 **kwargs):
+        
+        # Meijard(2007) model and parameter set from bicycleparameters
+        p = Meijaard2007ParameterSet(bicycleParameterDict, True)
+        m = Meijaard2007Model(p)
+        
+        kwargs = dict(kwargs, l = p.parameters["w"], l_1 = p.parameters["w"] / 2)
+        
+        BicycleParameters.__init__(self, **kwargs)
+        
+        #physical parameters
+        self.bp_model = m
+        self.bp_params_set = p
+        self.m = p.parameters["mB"] + p.parameters["mF"] + p.parameters["mH"] + p.parameters["mR"]
+        self.g = p.parameters["g"]
+        
+        #control parameters
+        self.poles = poles
+        
+    def get_state_space_matrices(self, v):
+        """
+        Calculate the state space matrices of the Whipple-Carvallo bicycle
+        for the speed v. 
+
+        Parameters
+        ----------
+        v : float
+            Longitudinal forward speed in m/s.
+
+        Returns
+        -------
+        A, B : numpy.ndarray
+            State space matrices
+        """
+        
+        return self.bp_model.form_state_space_matrices(v=v)
 
 
 class InvPendulumBicycleParameters(BicycleParameters):
@@ -1568,17 +1615,25 @@ class InvPendulumBicycleParameters(BicycleParameters):
         # K_u = -2.1591800063357907
 
         params_kx = np.array(
+            #[
+            #    [3.48203226e02, -5.12057324e03, 1.58364873e04, -1.98073306e04],
+            #    [-4.51700000e01, 0.00000000e00, 0.00000000e00, 0.00000000e00],
+            #    [-9.16379250e02, 1.31769807e04, -6.57341643e04, 8.22163589e04],
+            #    [3.20214069e02, -4.69953797e03, 1.66378680e04, -2.43114309e04],
+            #    [2.87549256e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00],
+            #]
             [
-                [3.48203226e02, -5.12057324e03, 1.58364873e04, -1.98073306e04],
-                [-4.51700000e01, 0.00000000e00, 0.00000000e00, 0.00000000e00],
-                [-9.16379250e02, 1.31769807e04, -6.57341643e04, 8.22163589e04],
-                [3.20214069e02, -4.69953797e03, 1.66378680e04, -2.43114309e04],
-                [2.87549256e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00],
-            ]
+             [ 1.27977414e+02, -1.94670000e+03,  2.43962111e+03, -3.02454886e+03],
+             [-4.51700000e+01,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
+             [-2.26494120e+00,  2.85310350e+00, -1.01263905e+04,  1.25543113e+04],
+             [ 9.05946737e+00, -1.99832338e+02, -2.45608874e+03, -2.08063358e+02],
+             [-3.38428663e-09, -2.27913445e+03,  0.00000000e+00,  0.00000000e+00],
+             ]
         )
 
         params_ku = np.array(
-            [2.87524813e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00]
+            #[2.87524813e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00]
+            [-3.38638984e-09, -2.27913445e+03,  0.00000000e+00,  0.00000000e+00]
         )
 
         vdata = np.array((1, v**-1, v**-2, v**-3))
