@@ -338,3 +338,127 @@ class DiffEquation:
             self.a0inv = 1 / ab[0][0]
         if ab[1] is not None:
             self.b = ab[1]
+
+
+# -----------------------------------------------------------------------------
+
+class Angle:
+    """
+    Describe planar orientations (e.g. in 2D) and angles with a complex number. 
+    Concept borrowed from quaternions for 3D orientations. 
+    """
+    def __init__(self, complex_unitvec):
+        """
+        Create an Angle object.
+
+        Parameters
+        ----------
+        complex_unitvec : complex
+            Complex number representing an angle as cos(angle) + j sin (angle).
+        """
+        assert np.abs(complex_unitvec) == 1, ("The norm of the complex angle",
+            f"must be 1! Instead it was |{complex_unitvec}| = ",
+            f"{np.abs(complex_unitvec)}.")
+        
+        self._complex_unitvec = complex_unitvec
+        
+
+    def from_euler(angle, deg=False):
+        """
+        Create an Angle object from a given Euler angle.
+
+        Parameters
+        ----------
+        angle : float
+            Euler angle in rad (deg=False) or deg (deg=True).
+        deg : boolean, optional
+            If True, the Euler angle is interpreted in deg. 
+            The default is False.
+
+        Returns
+        -------
+        cyclistsocialforce.utils.Angle
+            The Angle object.
+        """
+        if deg:
+            angle = np.deg2rad(angle)
+            return Angle(np.cos(angle) + 1j * np.sin(angle))
+        else:
+            return Angle(np.cos(angle) + 1j * np.sin(angle))
+
+    def to_euler(self, deg=False):
+        """
+        Return the Euler angle of this Angle object. 
+
+        Parameters
+        ----------
+        deg : boolean, optional
+            If True, the Euler angle is expressed in deg. The default is False.
+
+        Returns
+        -------
+        float
+            Euler angle in rad (deg=False) or deg (deg=True).
+
+        """
+        return np.angle(self._complex_unitvec, deg=deg)
+
+    def __add__(self, other):
+        assert isinstance(other, Angle)
+        x = self._complex_unitvec * other._complex_unitvec
+        return Angle(x)
+
+    def __sub__(self, other):
+        assert isinstance(other, Angle)
+        x = self._complex_unitvec / other._complex_unitvec
+        return Angle(x)
+
+    def __mul__(self, other):
+        assert isinstance(other, (int, float))
+        x = self._complex_unitvec**other
+        return Angle(x)
+
+    def __div__(self, other):
+        assert isinstance(other, (int, float))
+        x = self._complex_unitvec ** (1 / other)
+        return Angle(x)
+
+    def __eq__(self, other):
+        return self._complex_unitvec == other._complex_unitvec
+
+    def __lt__(self, other):
+        return self.to_euler() < other.to_euler()
+
+    def __gt__(self, other):
+        return self.to_euler() > other.to_euler()
+
+    def __leq__(self, other):
+        return self.to_euler() <= other.to_euler()
+
+    def __geq__(self, other):
+        return self.to_euler() >= other.to_euler()
+
+    def __max__(self, other):
+        assert isinstance(other, Angle)
+
+        if self >= other:
+            return Angle(self._complex_unitvec)
+        else:
+            return Angle(other._complex_unitvec)
+
+    def __min__(self, other):
+        assert isinstance(other, Angle)
+
+        if self <= other:
+            return Angle(self._complex_unitvec)
+        else:
+            return Angle(other._complex_unitvec)
+
+    def __str__(self):
+        return str(self.to_euler(deg=True))
+        
+    def __repr__(self):
+        return str(self)
+    
+    def __float__(self):
+        return self.to_euler()
