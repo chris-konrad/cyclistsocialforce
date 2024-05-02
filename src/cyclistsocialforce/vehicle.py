@@ -32,6 +32,7 @@ from cyclistsocialforce.parameters import (
     VehicleParameters,
     BicycleParameters,
     InvPendulumBicycleParameters,
+    WhippleCarvalloBicycleParameters
 )
 from cyclistsocialforce.vizualisation import (
     VehicleDrawing,
@@ -137,7 +138,7 @@ class Vehicle:
         # time step counter
         self.i = 0
 
-        # vehicle state (x, y, theta, v, delta)
+        # vehicle state (x, y, theta, v)
         self.s = np.array(s0, dtype=float)
         self.s[2] = limitAngle(s0[2])
 
@@ -190,6 +191,9 @@ class Vehicle:
             self.set_uncontrolled(uncontrolled_traj)
         else:
             self.uncontrolled = False
+            
+        # state names
+        self.s_names = ["x[m]", "y[m]", "phi[deg]", "v[m/s]"]
             
     @staticmethod
     def step_follow_traj(Vehicle, F1=None, F2=None):
@@ -691,10 +695,10 @@ class Vehicle:
         axes : list[Axes], optional
             Axes to be plotted in. Must be one axes per requested state to be
             plotted. The default is None and creates a new set of axes.
-        states_to_plot : list[bool], optional
-            States to be plotted. Must be a list of booleans indicating which
-            state should be plotted and which not. The default is None which
-            plots all states.
+        states_to_plot : list[bool] or list[int], optional
+            States to be plotted. Can be a list of booleans or a list of ints
+            indicating which state should be plotted and which not. The default 
+            is None which plots all states.
         t_end : float, optional
             Time span of the plot in s. The default plots the full available
             trajectory.
@@ -716,6 +720,10 @@ class Vehicle:
 
         if states_to_plot is None:
             states_to_plot = [True] * self.s.shape[0]
+        if not isinstance(states_to_plot[0], bool):
+            temp = np.zeros_like(self.s, dtype=bool)
+            temp[states_to_plot] = True
+            states_to_plot = temp
 
         if axes is None:
             fig, axes = plt.subplots(np.sum(states_to_plot), 1, sharex=True)
@@ -744,10 +752,10 @@ class Vehicle:
 
         for ax, i_s, name in zip(
             axes,
-            np.cumsum(states_to_plot),
+            np.argwhere(states_to_plot),
             np.array(self.s_names)[states_to_plot],
         ):
-            data_to_plot = self.traj[i_s - 1, :i_end]
+            data_to_plot = self.traj[i_s[0], :i_end]
             if "deg" in name:
                 data_to_plot = 180 * data_to_plot / np.pi
             ax.plot(data_to_plot, **plot_kw)
@@ -909,12 +917,7 @@ class ParticleBicycle(Vehicle):
         
         assert len(s0) == 4, "s0 has to have four elements: (x,y,psi,v)!"
         
-        # Add a fifth state (steer angle) to be able to use BicycleDrawing2D
-        # It is ignored by all other functions. 
-        s0_ext = np.zeros(5)
-        s0_ext[0:4] = s0
-        
-        Vehicle.__init__(self, s0_ext, **kwargs)
+        Vehicle.__init__(self, s0, **kwargs)
 
         # init dynamics: particle dynamics model with Fx/y input
         self.dynamics = ParticleDynamicsXY(self)
@@ -944,11 +947,13 @@ class WhippleCarvalloBicycle(Vehicle):
         """
         
         assert len(s0) == 6, "s0 has to have six elements: (x,y,psi,v)!"
+
+        # default parameters        
+        if "params" not in kwargs.keys():
+            kwargs = dict(kwargs, params = WhippleCarvalloBicycleParameters())
         
         Vehicle.__init__(self, s0, **kwargs)
 
-        if isinstance(self.params, VehicleParameters):
-            self.params = InvPendulumBicycleParameters()
 
         # init dynamics: particle dynamics model with Fx/y input
         self.dynamics = WhippleCarvalloDynamics(self)
@@ -962,8 +967,7 @@ class WhippleCarvalloBicycle(Vehicle):
         self.drawing_class = BicycleDrawing2D
         
         # state names
-        self.s_names = ["x", "y", "psi", "v", "delta", "theta"]
-        
+        self.s_names += ["delta[deg]", "theta[deg]"]
 
 class StationaryVehicle(Vehicle):
     def __init__(self, s0, userId="unknown", trajectory=(), params=None, drawing_class=CarDrawing2D):
@@ -1413,6 +1417,8 @@ class TwoDBicycle(Bicycle):
             self.params = params
 
         Bicycle.__init__(self, s0[0:5], userId, route, saveForces, 0)
+        
+        self.s_names += ["delta[deg]"]
 
         # current state
         #   [  x  ]   horizontal position
@@ -1800,14 +1806,7 @@ class InvPendulumBicycle(TwoDBicycle):
         self.s = np.array(s0, dtype=float)
         self.s[2] = limitAngle(s0[2])
         self.s[5] = limitAngle(s0[5])
-        self.s_names = (
-            "x[m]",
-            "y[m]",
-            "phi[deg]",
-            "v[m/s]",
-            "delta[deg]",
-            "theta[deg]",
-        )
+        self.s_names += ["theta[deg]"]
 
         # trajectory (list of past states)
         self.traj = np.zeros((6, int(30 / self.params.t_s)))

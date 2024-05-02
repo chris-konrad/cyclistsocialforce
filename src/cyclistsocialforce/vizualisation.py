@@ -719,6 +719,9 @@ class BicycleDrawing2D(VehicleDrawing):
             List of arrays describing the corners of each polygon.
 
         """
+        if len(s) < 6:
+            s = np.append(s, [0]*(6-len(s)))
+        
         R_psi = np.array(
             [[np.cos(s[2]), -np.sin(s[2])], [np.sin(s[2]), np.cos(s[2])]]
         )
