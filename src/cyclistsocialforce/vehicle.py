@@ -740,7 +740,7 @@ class Vehicle:
             states_to_plot needs to have the same number of elements as \
             this vehicle has states ({self.s.shape[0]}). Instead it has \
             {len(states_to_plot)} elements."
-        assert len(axes) == np.sum(
+        assert len(axes) >= np.sum(
             states_to_plot
         ), f"There were {len(axes)} \
             axes provided and plots of {np.sum(states_to_plot)} states \
@@ -915,7 +915,8 @@ class ParticleBicycle(Vehicle):
             overwritten by this constructor.
         """
         
-        assert len(s0) == 4, "s0 has to have four elements: (x,y,psi,v)!"
+        assert len(s0) >= 4, "s0 has to have four elements: (x,y,psi,v)!"
+        s0 = s0[0:4]
         
         Vehicle.__init__(self, s0, **kwargs)
 
