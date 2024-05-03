@@ -1122,6 +1122,31 @@ class BicycleParameters(VehicleParameters):
             )
         self._k_p_delta = k_p_delta
         
+class ParticleBicycleParameters(BicycleParameters):
+    
+    FIXED_POLES = 0+0j #must have a double pole at FIXED_POLES
+    N_POLES = 4
+    
+    def __init__(self, poles = (0 + 0j, 0 + 0j, -3 + 0j, -3 + 0j), **kwargs):
+        BicycleParameters.__init__(self, **kwargs)
+        self.poles = poles
+        
+    @property
+    def poles(self):
+        return self._poles
+    @poles.setter
+    def poles(self, poles):
+        if len(poles) != 4:
+            msg = "ParticleBicycleParameters must have four poles! Instead" \
+                  f"you provided {len(poles)}: poles = {poles}"
+            ValueError(msg)
+        if np.where(poles == self.FIXED_POLES)[0].size != 2:
+            msg = "ParticleBicycleParameters must have a double pole at " \
+                  f"{self.FIXED_POLES}. Instead the given poles where: " \
+                  f"poles = {poles}"
+        self._poles = poles
+        
+        
 class WhippleCarvalloBicycleParameters(BicycleParameters):
     
     def __init__(self, 
