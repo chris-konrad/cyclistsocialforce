@@ -159,7 +159,9 @@ class WhippleCarvalloDynamics(Dynamics):
         
 class ParticleDynamicsXY(Dynamics):
     
-    def __init__(self, Vehicle, poles = (0 + 0j, 0 + 0j, -3 + 0j, -3 + 0j)):
+    def __init__(self, Vehicle):
+        
+        self.poles = Vehicle.params.poles
         
         # init state space system
         A = np.array([[0,0,1,0], [0,0,0,1], [0,0,0,0], [0,0,0,0]])
@@ -167,7 +169,7 @@ class ParticleDynamicsXY(Dynamics):
         C = np.array([[0,0,1,0], [0,0,0,1]])
         D = np.zeros((C.shape[0], B.shape[1]))
         
-        self.sys = from_pole_placement(A, B, C, D, poles)
+        self.sys = from_pole_placement(A, B, C, D, self.poles)
         
         # save initial state x = [px, py, vx, vy]
         self.x = np.zeros(4)
@@ -185,7 +187,7 @@ class ParticleDynamicsXY(Dynamics):
             self.sys,
             T=np.array([0, Vehicle.params.t_s]),
             X0=self.x,
-            U=np.ones(2) * np.array(((Fx,),(Fy,))),
+            U=(np.ones(2) * np.array(((Fx,),(Fy,)))),
             return_x=True,
             squeeze=False)
         
@@ -194,9 +196,9 @@ class ParticleDynamicsXY(Dynamics):
         temp, psi_i = cart2polar((results.states[2,1]),
                                  (results.states[3,1]))
         
-        Vehicle.s[0:2] = results.outputs[0:2,1]
+        Vehicle.s[0:2] = results.states[0:2,1]
         Vehicle.s[2] = psi_i
-        Vehicle.s[3] = np.sqrt(np.sum(results.outputs[2:4,1]**2))
+        Vehicle.s[3] = np.sqrt(np.sum(results.states[2:4,1]**2))
         
         
         
