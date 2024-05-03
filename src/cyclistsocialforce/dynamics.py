@@ -40,7 +40,13 @@ class WhippleCarvalloDynamics(Dynamics):
         #self.bpbike = bp.Bicycle(self.BIKE, pathToData=self.PATH)
         
         #get geometry parameters
-        self.l = bicycle.params.l
+        w = self.bp_model.parameter_set.parameters["w"]
+        c = self.bp_model.parameter_set.parameters["c"]
+        coslam = np.cos(self.bp_model.parameter_set.parameters["lam"])
+        
+        #pre-calc yaw state matrix coefficients
+        self.A41_over_v = coslam / w
+        self.A43 = coslam * c / w
         
         #initialize state space system
         self.update(bicycle.s[3])
@@ -62,7 +68,8 @@ class WhippleCarvalloDynamics(Dynamics):
         #add yaw dynamics
         A = np.zeros((5,5))
         A[:4,:4] = Awc
-        A[4,1] = v / self.l
+        A[4,1] = self.A41_over_v * v
+        A[4,3] = self.A43
         
         B = np.zeros((5,1))
         B[:4,0] = Bwc[:,1]  #disregard roll torque input
