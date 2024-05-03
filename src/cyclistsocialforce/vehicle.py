@@ -31,6 +31,7 @@ from cyclistsocialforce.parameters import (
     CarParameters,
     VehicleParameters,
     BicycleParameters,
+    ParticleBicycleParameters,
     InvPendulumBicycleParameters,
     WhippleCarvalloBicycleParameters
 )
@@ -917,6 +918,9 @@ class ParticleBicycle(Vehicle):
         
         assert len(s0) >= 4, "s0 has to have four elements: (x,y,psi,v)!"
         s0 = s0[0:4]
+        
+        if "params" not in kwargs.keys():
+            kwargs = dict(kwargs, params = ParticleBicycleParameters())
         
         Vehicle.__init__(self, s0, **kwargs)
 
