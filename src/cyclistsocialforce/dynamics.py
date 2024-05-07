@@ -23,9 +23,116 @@ class Dynamics():
     
     def step(self, Vehicle, F1, F2):
         pass
+        
+class PPointSpeedDynamics(Dynamics):
+    """ A class describing the p-controlled point model of the form:
+        
+        dv(t)/dt - Kp (v(t) - v_ref) = 0, 
+        
+        which derives the acceleration of a point proportionally from the
+        difference between the current speed and a desired speed v_ref.  
+        
+        Assumes constant simulation time t_s and constant gain K_p. 
+    """
+    def __init__(self, vehicle):
+        
+        #precalc the constant exponent of the solution
+        self.exponent = np.exp(-vehicle.params.k_p_v * vehicle.params.t_s)
+        
+    def step(self, vehicle, v_ref):
+        """Advance the speed dynamics by one time step.
+        
+        This directly implements the solution of the differential equation
+        describing the speed dynamics.
+        
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle.Vehicle
+            The Vehicle with this SpeedDynamics object.
+        v_d : float
+            The reference speed.
+        """
+        
+        vehicle.s[3] = v_ref + (vehicle.s[3] - v_ref) * self.exponent
+        
     
+class PlanarTwoWheelerDynamics(Dynamics):
+    """ A class describing the dynamics of a planar bicycle.
     
+    States: x = (delta, ddelta, psi)
     
+    with steer angle delta, steer angle rate ddelta, and yaw angle psi. 
+    """
+    
+    def __init__(self, bicycle):
+        
+        # geometry
+        self.w = bicycle.params.l   #wheelbase
+        
+        #yaw dynamics
+        A = np.zeros((2,2))
+        B = np.array(((bicycle.params.k_p_delta,), (0,)))
+        C = np.identity(2)
+        D = np.zeros((2,1))
+        
+        A[0,:] = - bicycle.params.k_p_delta
+        
+        self.sys = ct.StateSpace(A,B,C,D)
+        
+        #speed dynamics
+        self.speed_dynamics = PPointSpeedDynamics(bicycle)
+        
+    def update(self, v):
+        """
+        Update the state matrix of the planar bicycle dynamics for the 
+        current speed.
+
+        Parameters
+        ----------
+        v : float
+            Current forward speed.
+        """
+        
+        self.sys.A[1,0] = v / self.w
+    
+    def step(self, bicycle, Fx, Fy):
+        """
+        Advance the planar bicycle model by one step. 
+
+        Parameters
+        ----------
+        bicycle : cyclistsocialforce.Bicycle
+            The bicycle with this PlanarTwoWheelerDynamics object.
+        Fx : float
+            X-component of the experienced social force.
+        Fy : TYPE
+            Y-componen of the experienced social force.
+        """
+        
+        #propagate current state
+        bicycle.s[0] += bicycle.s[3] * np.cos(bicycle.s[2]) * bicycle.params.t_s
+        bicycle.s[1] += bicycle.s[3] * np.sin(bicycle.s[2]) * bicycle.params.t_s
+        
+        #reference input
+        v_ref = np.sqrt(Fx**2 + Fy**2)
+        psi_ref = np.arctan(Fy/Fx)
+        
+        #yaw dynamics
+        self.update(bicycle.s[3])
+        results = ct.forced_response(
+            self.sys,
+            T=[0, bicycle.params.t_s],
+            X0=[bicycle.s[4], bicycle.s[2]],
+            U=[psi_ref, psi_ref]
+        )
+        
+        bicycle.s[2] = limitAngle(results.outputs[1,1])        
+        bicycle.s[4] = limitAngle(results.outputs[0,1])
+        
+        #speed dynamics
+        self.speed_dynamics.step(bicycle, v_ref)
+        
+        
 class WhippleCarvalloDynamics(Dynamics):
     
     PATH = "U:\PhDConnectedVRU\Projects\external\BicycleParameters\data"
