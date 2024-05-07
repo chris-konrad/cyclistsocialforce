@@ -66,18 +66,19 @@ class PlanarTwoWheelerDynamics(Dynamics):
     
     def __init__(self, bicycle):
         
+        # poles
+        self.poles = bicycle.params.poles
+        
         # geometry
         self.w = bicycle.params.l   #wheelbase
         
+        #save initial state
+        self.x = np.zeros(2)
+        self.x[0] = bicycle.s[4]
+        self.x[1] = bicycle.s[2]
+        
         #yaw dynamics
-        A = np.zeros((2,2))
-        B = np.array(((bicycle.params.k_p_delta,), (0,)))
-        C = np.identity(2)
-        D = np.zeros((2,1))
-        
-        A[0,:] = - bicycle.params.k_p_delta
-        
-        self.sys = ct.StateSpace(A,B,C,D)
+        self.update(bicycle.s[3])
         
         #speed dynamics
         self.speed_dynamics = PPointSpeedDynamics(bicycle)
@@ -93,44 +94,40 @@ class PlanarTwoWheelerDynamics(Dynamics):
             Current forward speed.
         """
         
-        self.sys.A[1,0] = v / self.w
+        A = np.zeros((2,2))
+        B = np.array(((1,), (0,)))
+        C = np.array((0,1))
+        D = np.zeros((1,1))
+        
+        A[1,0] = v / self.w
+        
+        self.sys = from_pole_placement(A, B, C, D, 
+                                       self.poles)
     
     def step(self, bicycle, Fx, Fy):
-        """
-        Advance the planar bicycle model by one step. 
-
-        Parameters
-        ----------
-        bicycle : cyclistsocialforce.Bicycle
-            The bicycle with this PlanarTwoWheelerDynamics object.
-        Fx : float
-            X-component of the experienced social force.
-        Fy : TYPE
-            Y-componen of the experienced social force.
-        """
         
-        #propagate current state
-        bicycle.s[0] += bicycle.s[3] * np.cos(bicycle.s[2]) * bicycle.params.t_s
-        bicycle.s[1] += bicycle.s[3] * np.sin(bicycle.s[2]) * bicycle.params.t_s
-        
-        #reference input
-        v_ref = np.sqrt(Fx**2 + Fy**2)
-        psi_ref = np.arctan(Fy/Fx)
-        
-        #yaw dynamics
+        # update statespace parameters with current speed
         self.update(bicycle.s[3])
+
+        # absolute force angle
+        psi_d = np.arctan2(Fy, Fx)
+        v_d = np.sqrt(Fy**2+Fx**2)
+
+        # calculate steer angle for stabilization
         results = ct.forced_response(
             self.sys,
-            T=[0, bicycle.params.t_s],
-            X0=[bicycle.s[4], bicycle.s[2]],
-            U=[psi_ref, psi_ref]
+            T=np.array([0, bicycle.params.t_s]),
+            X0=self.x,
+            return_x=True,
+            U=np.ones(2) * psi_d,
+            squeeze=False,
         )
+        self.x = results.states[:,1]
         
-        bicycle.s[2] = limitAngle(results.outputs[1,1])        
-        bicycle.s[4] = limitAngle(results.outputs[0,1])
+        bicycle.s[2] = limitAngle(results.states[1,1])
+        bicycle.s[4] = limitAngle(results.states[0,1])
         
-        #speed dynamics
-        self.speed_dynamics.step(bicycle, v_ref)
+        self.speed_dynamics.step(bicycle, v_d)
         
         
 class WhippleCarvalloDynamics(Dynamics):

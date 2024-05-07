@@ -31,6 +31,7 @@ from cyclistsocialforce.parameters import (
     CarParameters,
     VehicleParameters,
     BicycleParameters,
+    PlanarBicycleParameters,
     ParticleBicycleParameters,
     InvPendulumBicycleParameters,
     WhippleCarvalloBicycleParameters
@@ -221,7 +222,7 @@ class Vehicle:
         """
                 
         if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params = self.PARAMS_TYPE)
+            kwargs = dict(kwargs, params = self.PARAMS_TYPE())
         else:
             assert isinstance(kwargs["params"], self.PARAMS_TYPE), ("params ",
                 "must be a {self.PARAMS_TYPE}",
@@ -956,7 +957,7 @@ class PlanarBicycle(Vehicle):
     """ A bicycle with planar two-wheeler kinematics.
     """
     
-    PARAMS_TYPE = BicycleParameters
+    PARAMS_TYPE = PlanarBicycleParameters
     
     def __init__(self, s0, **kwargs):
         """

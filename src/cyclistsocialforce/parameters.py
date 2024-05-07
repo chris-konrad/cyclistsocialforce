@@ -1146,6 +1146,15 @@ class ParticleBicycleParameters(BicycleParameters):
                   f"poles = {poles}"
         self._poles = poles
         
+class PlanarBicycleParameters(BicycleParameters):
+    
+    def __init__(self, 
+                 poles = (-1 + 1j, -1 - 1j),
+                 **kwargs):
+        
+        BicycleParameters.__init__(self, **kwargs)
+        self.poles = poles    
+        
         
 class WhippleCarvalloBicycleParameters(BicycleParameters):
     
