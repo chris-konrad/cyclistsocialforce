@@ -40,7 +40,7 @@ from cyclistsocialforce.vizualisation import (
     BicycleDrawing2D,
     CarDrawing2D,
 )
-from cyclistsocialforce.dynamics import ParticleDynamicsXY, WhippleCarvalloDynamics
+from cyclistsocialforce.dynamics import ParticleDynamicsXY, WhippleCarvalloDynamics, PlanarTwoWheelerDynamics
 
 #------------------------- Vehicle Classes ------------------------------------
 
@@ -51,6 +51,7 @@ class Vehicle:
     the selected route.
     """
 
+    PARAMS_TYPE = VehicleParameters
     REQUIRED_PARAMS = ("d_arrived_inter", "hfov")
 
     def __init__(
@@ -214,6 +215,19 @@ class Vehicle:
         """
         return 0, 0
         
+    def verify_params_class(self, kwargs):
+        """Check if the params object in the keyword argument has the right 
+        type. Add the default parameters if kwargs has no params object.
+        """
+                
+        if "params" not in kwargs.keys():
+            kwargs = dict(kwargs, params = self.PARAMS_TYPE)
+        else:
+            assert isinstance(kwargs["params"], self.PARAMS_TYPE), ("params ",
+                "must be a {self.PARAMS_TYPE}",
+                f"object. Instead it was {type(kwargs['params'])}.")
+        return kwargs
+            
     def calcRepulsiveForce(self, x, y, psi):
         """
         Calculate the repulsive force of this vehicle using its 
@@ -901,6 +915,9 @@ class UncontrolledVehicle(Vehicle):
             self.s = self.traj[:, self.i+1]
         
 class ParticleBicycle(Vehicle):
+    
+    PARAMS_TYPE = ParticleBicycleParameters
+    
     """ A bicycle with particle dynamics. 
     """
     def __init__(self, s0, **kwargs):
@@ -919,8 +936,8 @@ class ParticleBicycle(Vehicle):
         assert len(s0) >= 4, "s0 has to have four elements: (x,y,psi,v)!"
         s0 = s0[0:4]
         
-        if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params = ParticleBicycleParameters())
+        # default parameters        
+        kwargs = self.verify_params_class(kwargs)
         
         Vehicle.__init__(self, s0, **kwargs)
 
@@ -935,9 +952,54 @@ class ParticleBicycle(Vehicle):
         # init drawing
         self.drawing_class = BicycleDrawing2D
         
+class PlanarBicycle(Vehicle):
+    """ A bicycle with planar two-wheeler kinematics.
+    """
+    
+    PARAMS_TYPE = BicycleParameters
+    
+    def __init__(self, s0, **kwargs):
+        """
+        Create a planar bicycle
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0, delta0).
+        **kwargs : TYPE
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are 
+            overwritten by this constructor.
+        """
+        
+        assert len(s0) >= 5, ("s0 has to have at least five elements:",
+                              " (x, y, psi, v, delta)!")
+        
+        # default parameters        
+        kwargs = self.verify_params_class(kwargs)
+        
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init dynamics: Planar dynamics model with Fx/y input
+        self.dynamics = PlanarTwoWheelerDynamics(self)
+        self.dyn_step_func = self.dynamics.step
+        
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+        
+        # init drawing
+        self.drawing_class = BicycleDrawing2D
+        
+        # state names
+        self.s_names += ["delta[deg]"]
+        
 class WhippleCarvalloBicycle(Vehicle):
     """ A bicycle with Whipple Carvallo Dynamics. 
     """
+    
+    PARAMS_TYPE = WhippleCarvalloBicycleParameters
+    
     def __init__(self, s0, **kwargs):
         """Create a Whipple Carvallo dynamics bicycle.
 
@@ -951,16 +1013,15 @@ class WhippleCarvalloBicycle(Vehicle):
             overwritten by this constructor.
         """
         
-        assert len(s0) == 6, "s0 has to have six elements: (x,y,psi,v)!"
+        assert len(s0) >= 6, ("s0 has to have at least six elements:",
+                              " (x, y, psi, v, delta, theta)!")
 
         # default parameters        
-        if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params = WhippleCarvalloBicycleParameters())
+        kwargs = self.verify_params_class(kwargs)
         
         Vehicle.__init__(self, s0, **kwargs)
 
-
-        # init dynamics: particle dynamics model with Fx/y input
+        # init dynamics: Whipple-Carvallo dynamics model with Fx/y input
         self.dynamics = WhippleCarvalloDynamics(self)
         self.dyn_step_func = self.dynamics.step
         
