@@ -378,7 +378,7 @@ class VehicleParameters:
     Provides tactical parameters.
     """
 
-    LIMIT_PREC = 1e-10
+    LIMIT_PREC = 1e-4
 
     def __init__(
         self,
@@ -578,7 +578,7 @@ class VehicleParameters:
         if not f_0 >= 0:
             msg = f"f_0 must be >=0, instead it was {f_0:.2f}"
             if self.calib_mode:
-                warnings.warn(msg)
+                if self.verbose: warnings.warn(msg)
                 f_0 = self.LIMIT_PREC
             else:
                 raise ValueError(msg)
@@ -595,7 +595,7 @@ class VehicleParameters:
         if not self.e_1 < e_0 <= 1:
             msg = f"e_0 must be in ]e_1={self.e_1:.2f}, 1], instead it was {e_0:.2f}"
             if self.calib_mode:
-                warnings.warn(msg)
+                if self.verbose: warnings.warn(msg)
                 e_0 = thresh(e_0, (self.e_1 * 1.001, 0.99999))
             else:
                 raise ValueError(msg)
@@ -612,7 +612,7 @@ class VehicleParameters:
         if not 0 <= e_1 < self.e_0:
             msg = f"e_1 must be in [0,e_0={self.e_0:.2f}[, instead it was {e_1:.2f}"
             if self.calib_mode:
-                warnings.warn(msg)
+                if self.verbose: warnings.warn(msg)
                 e_1 = thresh(e_1, (0, 0.99999 * self.e_0))
             else:
                 raise ValueError(msg)
@@ -629,7 +629,7 @@ class VehicleParameters:
         if not sigma_0 >= 0:
             msg = f"sigma_0 must be >=0, instead it was {sigma_0:.2f}"
             if self.calib_mode:
-                warnings.warn(msg)
+                if self.verbose: warnings.warn(msg)
                 sigma_0 = self.LIMIT_PREC
             else:
                 raise ValueError(msg)
@@ -646,7 +646,7 @@ class VehicleParameters:
         if not sigma_1 >= 0:
             msg = f"sigma_1 must be >=0, instead it was {sigma_1:.2f}"
             if self.calib_mode:
-                warnings.warn(msg)
+                if self.verbose: warnings.warn(msg)
                 sigma_1 = self.LIMIT_PREC
             else:
                 raise ValueError(msg)
@@ -663,7 +663,7 @@ class VehicleParameters:
         if not 0 < sigma_2 < self.sigma_0:
             msg = f"sigma_2 must be in [0,sigma_0={self.sigma_0:.2f}[, instead it was {sigma_2:.2f}"
             if self.calib_mode:
-                warnings.warn(msg)
+                if self.verbose: warnings.warn(msg)
                 sigma_2 = thresh(sigma_2, (0, self.sigma_0 - self.LIMIT_PREC))
             else:
                 raise ValueError(msg)
@@ -680,7 +680,7 @@ class VehicleParameters:
         if not 0 < sigma_3 < self.sigma_1:
             msg = f"sigma_3 must be in [0,sigma_1={self.sigma_1:.2f}[, instead it was {sigma_3:.2f}"
             if self.calib_mode:
-                warnings.warn(msg)
+                if self.verbose: warnings.warn(msg)
                 sigma_0 = thresh(sigma_3, (0, self.sigma_1 - self.LIMIT_PREC))
             else:
                 raise ValueError(msg)
@@ -733,7 +733,7 @@ class BicycleParameters(VehicleParameters):
 
     def __init__(
         self,
-        v_max_riding: tuple = [-1.0, 7.0],
+        v_max_riding: tuple = [-1.0, 10.0],
         v_desired_default: float = 5.0,
         p_decay: float = 5.0,
         p_0: float = 30.0,
@@ -751,6 +751,7 @@ class BicycleParameters(VehicleParameters):
         d_arrived_inter: float = 2.0,
         d_arrived_stop: float = 2.0,
         v_max_harddecel: float = 2.5,
+        g = 9.81,
         **kwargs,
     ) -> None:
         """Create the parameter set of a default bicycle.
@@ -882,7 +883,10 @@ class BicycleParameters(VehicleParameters):
         # Control parameter default values
         self.k_p_v = k_p_v
         self.k_p_delta = k_p_delta
-
+        
+        #Physical constants
+        self.g = g
+ 
     # ---- PROPERTIES ----
 
     @property
@@ -1127,7 +1131,7 @@ class ParticleBicycleParameters(BicycleParameters):
     FIXED_POLES = 0+0j #must have a double pole at FIXED_POLES
     N_POLES = 4
     
-    def __init__(self, poles = (0 + 0j, 0 + 0j, -3 + 0j, -3 + 0j), **kwargs):
+    def __init__(self, poles = (0 + 0j, 0 + 0j, -0.97626953125+0j + 0j, -0.97626953125+0j + 0j), **kwargs):
         BicycleParameters.__init__(self, **kwargs)
         self.poles = poles
         
@@ -1149,7 +1153,8 @@ class ParticleBicycleParameters(BicycleParameters):
 class PlanarBicycleParameters(BicycleParameters):
     
     def __init__(self, 
-                 poles = (-1 + 1j, -1 - 1j),
+                 poles = (-1.0141284591434665 + 1.226826644413086j,
+                          -1.0141284591434665 - 1.226826644413086j),
                  **kwargs):
         
         BicycleParameters.__init__(self, **kwargs)
@@ -1160,7 +1165,9 @@ class WhippleCarvalloBicycleParameters(BicycleParameters):
     
     def __init__(self, 
                  bicycleParameterDict = meijaard2007_browser_jason, 
-                 poles = (-18 + 0j, -19 + 0, -20 + 0j, -6 + 3j, -6 - 3j),
+                 poles = (-18 + 0j, -19 + 0, -20 + 0j, 
+                          -1.2240726404163056+1.2879634520488243j, 
+                          -1.2240726404163056-1.2879634520488243j),
                  **kwargs):
         
         # Meijard(2007) model and parameter set from bicycleparameters
