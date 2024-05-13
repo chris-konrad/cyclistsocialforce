@@ -54,11 +54,11 @@ def figToImg(fig):
     return data.reshape((int(h), int(w), -1))
 
 
-def toDeg(rad):
+def to_deg(rad):
     return 360 * rad / (2 * np.pi)
 
 
-def toRad(deg):
+def to_rad(deg):
     return 2 * np.pi * deg / (360)
 
 
@@ -183,12 +183,66 @@ def thresh(x, minmax):
     return np.maximum(np.minimum(x, minmax[1]), minmax[0])
 
 
-# def thresh(x, minmax):
-#    if x < minmax[0]:
-#        x = minmax[0]
-#    elif x > minmax[1]:
-#        x = minmax[1]
-#    return x
+def validate_boolean_indicators(features, indicator_name, data_name, n_features):
+    """
+    Validate a boolean inicator input. This checks if features is either an
+    array-like of booleans with the length n_features or an array-like of
+    integers within the range [0, n_features]. 
+    
+    Use this for checking if a selector/indicator is compatible with the 
+    data it is used to select from. 
+
+    Parameters
+    ----------
+    features : array-like
+        Indicator array.
+    indicator_name : str
+        Name of the validated boolan indicator.
+        Used to create appropriate error messages.
+    data_name : str
+        Name of the data/varibale that this boolean selector is used on.
+        Used to create appropriate error messages.
+    n_features : int
+        Number of selection possibilities that this selector is used on.
+
+    Raises
+    ------
+    ValueError
+        Raised if features doesn't satisfy the requirements to an indicator 
+        array-like.
+
+    Returns
+    -------
+    bool_features : np.ndarray
+        The validated indicator as an array of bools with the length 
+        n_features.
+
+    """
+    
+    features = np.array(features)
+    msg = (f"Boolean indicator array-like '{indicator_name}' must be either",
+           f" an array of bool with {n_features} elements or an array of int ",
+           f"in [0, {n_features}]. Instead it was an array of ",
+           f"{features.dtype}.")
+
+    if (features.dtype == bool):
+        if (len(features) == n_features):
+            return features
+        else:
+            msg = (f"Boolean indicator array-like '{indicator_name}' must ",
+                   f"have the same number of elements as {data_name} has ",
+                   f"features ({n_features}). Instead it was {len(features)}.")
+        
+    if features.dtype == int: 
+        if np.all(0 < features < n_features):
+            bool_features = [i in features for i in range(n_features)]
+            return bool_features
+        else: 
+            msg = (f"Integer indices for {indicator_name} must be in [0, ",
+                   f"{n_features}]. Instead it was in [",
+                   f"{np.amin(features)}, {np.amax(features)}].")
+             
+    raise ValueError(msg)
 
 
 class DiffEquation:
