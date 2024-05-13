@@ -1127,7 +1127,11 @@ class ParticleBicycleParameters(BicycleParameters):
     FIXED_POLES = 0+0j #must have a double pole at FIXED_POLES
     N_POLES = 4
     
-    def __init__(self, poles = (0 + 0j, 0 + 0j, -3 + 0j, -3 + 0j), **kwargs):
+    def __init__(self, poles = (0 + 0j, 
+                                0 + 0j, 
+                                -0.6838867187499997+0j + 0j, 
+                                -0.6838867187499997+0j + 0j),
+                 **kwargs):
         BicycleParameters.__init__(self, **kwargs)
         self.poles = poles
         
@@ -1146,12 +1150,25 @@ class ParticleBicycleParameters(BicycleParameters):
                   f"poles = {poles}"
         self._poles = poles
         
+class PlanarBicycleParameters(BicycleParameters):
+    
+    def __init__(self, 
+                 poles = (-0.6663217653491247+0.883768997963187j,
+                          -0.6663217653491247-0.883768997963187j),
+                 **kwargs):
+        
+        BicycleParameters.__init__(self, **kwargs)
+        self.poles = poles    
+
         
 class WhippleCarvalloBicycleParameters(BicycleParameters):
     
     def __init__(self, 
                  bicycleParameterDict = meijaard2007_browser_jason, 
-                 poles = (-18 + 0j, -19 + 0, -20 + 0j, -6 + 3j, -6 - 3j),
+
+                 poles = (-18 + 0j, -19 + 0, -20 + 0j, 
+                          -0.8598383045071387+0.9377250149806062j, 
+                          -0.8598383045071387-0.9377250149806062j),
                  **kwargs):
         
         # Meijard(2007) model and parameter set from bicycleparameters
