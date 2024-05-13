@@ -129,6 +129,12 @@ class PlanarTwoWheelerDynamics(Dynamics):
         
         self.speed_dynamics.step(bicycle, v_d)
         
+        y = bicycle.s[1] + bicycle.params.t_s * bicycle.s[3] * np.sin(bicycle.s[2])
+        x = bicycle.s[0] + bicycle.params.t_s * bicycle.s[3] * np.cos(bicycle.s[2])
+        
+        bicycle.s[0] = x
+        bicycle.s[1] = y
+        
         
 class WhippleCarvalloDynamics(Dynamics):
     
