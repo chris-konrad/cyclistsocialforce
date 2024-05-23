@@ -410,11 +410,22 @@ class Angle:
         complex_unitvec : complex
             Complex number representing an angle as cos(angle) + j sin (angle).
         """
-        assert np.abs(complex_unitvec) == 1, ("The norm of the complex angle",
-            f"must be 1! Instead it was |{complex_unitvec}| = ",
-            f"{np.abs(complex_unitvec)}.")
+        #assert np.abs(complex_unitvec) == 1, ("The norm of the complex angle",
+        #    f"must be 1! Instead it was |{complex_unitvec}| = ",
+        #    f"{np.abs(complex_unitvec)}.")
         
         self._complex_unitvec = complex_unitvec
+    
+    def from_euler_array(euler_array, deg=False):
+        
+        shape = euler_array.shape
+        angle_array = np.empty(euler_array.shape, dtype=Angle).flatten()
+        
+        euler_flat = euler_array.flatten()
+        for i in range(len(euler_flat)):
+            angle_array[i] = Angle.from_euler(euler_flat[i], deg=deg)
+            
+        return np.reshape(angle_array, shape)
         
 
     def from_euler(angle, deg=False):
@@ -434,6 +445,7 @@ class Angle:
         cyclistsocialforce.utils.Angle
             The Angle object.
         """
+        
         if deg:
             angle = np.deg2rad(angle)
             return Angle(np.cos(angle) + 1j * np.sin(angle))
@@ -456,6 +468,9 @@ class Angle:
 
         """
         return np.angle(self._complex_unitvec, deg=deg)
+    
+    def __abs__(self):
+        return Angle(self._complex_unitvec.real + 1j * abs(self._complex_unitvec.imag))
 
     def __add__(self, other):
         assert isinstance(other, Angle)
