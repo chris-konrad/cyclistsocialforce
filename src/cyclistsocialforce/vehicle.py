@@ -23,7 +23,7 @@ from cyclistsocialforce.utils import (
     cart2polar,
     thresh,
     angleDifference,
-    toDeg,
+    to_deg,
     DiffEquation,
 )
 from cyclistsocialforce.vehiclecontrol import PIDcontroller
@@ -2043,3 +2043,42 @@ class InvPendulumBicycle(TwoDBicycle):
 
         self.zrid[0] = not cvwalk and (self.zrid[1] and cdelta or self.zrid[0])
         self.zrid[1] = not self.zrid[0]    
+
+
+### Collection of Destination force functions
+
+def calc_direct_approach_dest_force(Vehicle):
+    """Calculates force vectors from locations in x, y to the current
+    destination.
+
+    Evaluates at all locations in x and y.
+
+    If the road user has a destination queue, this also checks if the
+    current intermediate destination has to be updated to the next one.
+
+
+    Parameters
+    ----------
+    x : Tuple of floats
+        x locations for potential evaluation. len(x) must be equal len(y)
+    y : Tuple of floats
+        y locations for potential evaluation. len(x) must be equal len(y)
+
+    """
+    if Vehicle.destqueue is not None:
+        Vehicle.updateDestination()
+
+    vd, ddest = Vehicle.updateNavState(Vehicle.dest[2])
+
+    if ddest > 0:
+        Fx = -vd * (Vehicle.s[0] - Vehicle.dest[0]) / ddest
+        Fy = -vd * (Vehicle.s[1] - Vehicle.dest[1]) / ddest
+    else:
+        Fx = 0
+        Fy = 0
+
+    return (Fx, Fy)
+
+
+def calc_spline_dest_force(x, y):
+    pass
