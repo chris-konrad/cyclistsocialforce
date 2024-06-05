@@ -5,10 +5,53 @@ Created on Wed Apr 19 16:49:49 2023.
 @author: Christoph Schmidt
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import io
 
+from scipy.fft import fft
 
+def plot_fft(t, x):
+    """
+    Plots the fft of a time-discrete signal x
+
+    Parameters
+    ----------
+    t : array-like or float
+        If an array, t is interpreted as the time samples of the datapoints in 
+        x. If a float, t is interpreted as the sample time T_s
+    x : array-like
+        Array of N data points sampled at times t. Must be equally spaced!
+
+    Returns
+    -------
+    ax : axes
+        Axes of the plot.
+    """
+    
+    n = len(x)
+    
+    if isinstance(t,float):
+        t_s=t
+        t = np.arange(0, n * t_s, t_s)
+    else:
+        t_s = t[1]-t[0]
+        
+    X = fft(x, norm='forward') #scales the output by 1/n
+    
+    F = np.arange(0, 1/t_s, 1/(n*t_s))
+    
+    #plot
+    fig, ax = plt.subplots(1,2)
+    ax[0].plot(t, x)
+    ax[0].set_xlabel('t [s]')
+    ax[1].plot(F[:int(n/2)], np.abs(X[:int(n/2)]))
+    ax[1].set_xlabel('f [Hz]')
+    ax[1].set_yscale('log')
+    
+    return ax
+
+    
 def limitMagnitude(x, y, r):
     """Limit the magnitude of a set of vectors to a given maximum
 
