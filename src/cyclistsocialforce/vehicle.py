@@ -41,7 +41,7 @@ from cyclistsocialforce.vizualisation import (
     BicycleDrawing2D,
     CarDrawing2D,
 )
-from cyclistsocialforce.dynamics import ParticleDynamicsXY, WhippleCarvalloDynamics
+from cyclistsocialforce.dynamics import ParticleDynamicsXY, WhippleCarvalloDynamics, HessBikeRiderDynamics
 
 #------------------------- Vehicle Classes ------------------------------------
 
@@ -977,6 +977,49 @@ class WhippleCarvalloBicycle(Vehicle):
         
         # state names
         self.s_names += ["delta[deg]", "theta[deg]"]
+        
+class HessBicycle(Vehicle):
+    """ A bicycle with Whipple Carvallo Dynamics and the Hess Bicycle Rider 
+    Control model.
+    
+    See Section "Control" in Moore (2012).
+    """
+    def __init__(self, s0, **kwargs):
+        """Create a Hess bicycle.
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0, delta0, theta0).
+        **kwargs
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are 
+            overwritten by this constructor.
+        """
+        
+        assert len(s0) == 6, "s0 has to have six elements: (x,y,psi,v)!"
+
+        # default parameters        
+        if "params" not in kwargs.keys():
+            kwargs = dict(kwargs, params = WhippleCarvalloBicycleParameters())
+        
+        Vehicle.__init__(self, s0, **kwargs)
+
+
+        # init dynamics: particle dynamics model with Fx/y input
+        self.dynamics = HessBikeRiderDynamics(self)
+        self.dyn_step_func = self.dynamics.step
+        
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+        
+        # init drawing
+        self.drawing_class = BicycleDrawing2D
+        
+        # state names
+        self.s_names += ["delta[deg]", "theta[deg]"]
+    
 
 class StationaryVehicle(Vehicle):
     def __init__(self, s0, userId="unknown", trajectory=(), params=None, drawing_class=CarDrawing2D):

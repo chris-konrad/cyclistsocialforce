@@ -24,8 +24,6 @@ class Dynamics():
     def step(self, Vehicle, F1, F2):
         pass
     
-    
-    
 class WhippleCarvalloDynamics(Dynamics):
     
     PATH = "U:\PhDConnectedVRU\Projects\external\BicycleParameters\data"
@@ -64,7 +62,7 @@ class WhippleCarvalloDynamics(Dynamics):
         
         self.psi_boundless = bicycle.s[2]
         
-    def update(self, v):
+    def get_statespace_matrices(self, v):
         Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
         
         #add yaw dynamics
@@ -80,6 +78,11 @@ class WhippleCarvalloDynamics(Dynamics):
         C = np.zeros((1,A.shape[1]))
         C[0,4] = 1
         D = np.zeros((C.shape[0], B.shape[1]))
+        
+        return A, B, C, D
+        
+    def update(self, v):
+        A, B, C, D = self.get_statespace_matrices(v)
     
         #pole placement
         self.sys = from_pole_placement(A, B, C, D, self.poles)
@@ -99,8 +102,7 @@ class WhippleCarvalloDynamics(Dynamics):
         psi_d_temp = np.array([psi_d - (2*np.pi), psi_d, psi_d + (2*np.pi)])
         i_temp = np.argmin(np.abs(psi_d_temp - self.psi_boundless))
         psi_d = psi_d_temp[i_temp]
-        
-        
+             
         #if abs(psi_d - bicycle.s[2]) > np.pi:
         #    dpsi = angleDifference(psi_d, bicycle.s[2])
         #    psi_d = bicycle.s[2] + dpsi
@@ -182,6 +184,72 @@ class WhippleCarvalloDynamics(Dynamics):
         bicycle.s[1] = y
         bicycle.s[3] = v
         
+
+class HessBikeRiderDynamics(WhippleCarvalloDynamics):
+    
+    def __init__(self, Bicycle):
+        WhippleCarvalloDynamics.__init__(self, Bicycle)
+        
+        self.x = np.r_[self.x, np.zeros(2)]
+        
+    def get_adaptive_gains(self, v):
+        """
+        Gain curves eyeballed from Moore (2012)
+        """
+        k_delta = 58/10 * v
+        k_dphi = 3/10 * v - 3 
+        k_phi = 3
+        k_psi = 2.25/10 * v - 0.5
+        omega = 2.17 * 2 * np.pi
+        zeta = np.sqrt(2)
+        
+        return k_delta, k_phi, k_dphi, k_psi, omega, zeta
+       
+    def get_statespace_matrices(self, v):
+        """
+        Construct the statespace matrices 
+
+        Parameters
+        ----------
+        v : float
+            Current forward speed.
+
+        """
+        #Get adaptive gains
+        k_delta, k_phi, k_dphi, k_psi, omega, zeta = self.get_adaptive_gains(v)
+        
+        #build statespace matrices
+        A = np.zeros((7,7))
+        A[5,6] = 1 
+        A[6,:] = np.array([
+            -k_delta * omega**2,
+            0,
+            -k_delta * k_phi * k_dphi * omega**2,
+            -k_delta * k_dphi * omega**2, 
+            -k_delta * k_phi * k_dphi * k_psi * omega**2,
+            -omega**2,
+            -2*omega * zeta])
+        
+        B = np.zeros((7, 1))
+        B[6] = k_delta * k_phi * k_dphi * k_psi * omega**2
+        
+        #output
+        C = np.zeros((1,A.shape[1]))
+        C[0,4] = 1
+        D = np.zeros((C.shape[0], B.shape[1]))
+        
+        #Add the open-loop whipple model
+        Awc, Bwc, Cwc, Dwc = WhippleCarvalloDynamics.get_statespace_matrices(
+            self, v)
+        
+        A[:5, :5] = Awc
+        A[:5, 5] = Bwc.flatten()
+        
+        return A, B, C, D
+        
+    def update(self, v):
+        A, B, C, D = self.get_statespace_matrices(v)
+        self.sys = ct.StateSpace(A, B, C, D)
         
 class ParticleDynamicsXY(Dynamics):
     
@@ -225,7 +293,6 @@ class ParticleDynamicsXY(Dynamics):
         Vehicle.s[0:2] = results.states[0:2,1]
         Vehicle.s[2] = psi_i
         Vehicle.s[3] = np.sqrt(np.sum(results.states[2:4,1]**2))
-        
         
         
 def from_pole_placement(A, B, C, D, poles, t_end=10.0, t_s=0.01):
