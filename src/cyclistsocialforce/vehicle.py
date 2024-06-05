@@ -25,6 +25,7 @@ from cyclistsocialforce.utils import (
     angleDifference,
     to_deg,
     DiffEquation,
+    Angle
 )
 from cyclistsocialforce.vehiclecontrol import PIDcontroller
 from cyclistsocialforce.parameters import (
@@ -286,6 +287,9 @@ class Vehicle:
         # trajectory and counter
         self.i += 1
         self.traj[:, self.i] = self.s
+        if self.saveForces:
+            self.trajF[0,self.i] = F1
+            self.trajF[1,self.i] = F2
 
         # drawing
         self.update_drawing()

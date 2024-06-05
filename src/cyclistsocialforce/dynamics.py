@@ -9,7 +9,7 @@ import numpy as np
 import control as ct
 import bicycleparameters as bp
 
-from cyclistsocialforce.utils import limitAngle, thresh, cart2polar
+from cyclistsocialforce.utils import limitAngle, thresh, cart2polar, angleDifference
 from cyclistsocialforce.vehiclecontrol import PIDcontroller
 
 from bicycleparameters.parameter_dicts import meijaard2007_browser_jason
@@ -62,6 +62,8 @@ class WhippleCarvalloDynamics(Dynamics):
             bicycle.params.k_p_v, 0, 0, bicycle.params.t_s, isangle=False
         )
         
+        self.psi_boundless = bicycle.s[2]
+        
     def update(self, v):
         Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
         
@@ -85,11 +87,23 @@ class WhippleCarvalloDynamics(Dynamics):
         
     def step(self, bicycle, Fx, Fy):
         
+        n_turns = int(self.psi_boundless / (2*np.pi))
+        
         # update statespace parameters with current speed
         self.update(bicycle.s[3])
 
         # absolute force angle
-        psi_d = np.arctan2(Fy, Fx)
+        psi_d = np.arctan2(Fy, Fx) 
+        psi_d = psi_d + n_turns * 2 * np.pi
+        
+        psi_d_temp = np.array([psi_d - (2*np.pi), psi_d, psi_d + (2*np.pi)])
+        i_temp = np.argmin(np.abs(psi_d_temp - self.psi_boundless))
+        psi_d = psi_d_temp[i_temp]
+        
+        
+        #if abs(psi_d - bicycle.s[2]) > np.pi:
+        #    dpsi = angleDifference(psi_d, bicycle.s[2])
+        #    psi_d = bicycle.s[2] + dpsi
 
         # calculate steer angle for stabilization
         results = ct.forced_response(
@@ -102,11 +116,16 @@ class WhippleCarvalloDynamics(Dynamics):
         )
         self.x = results.states[:,1]
         
+        self.psi_boundless = results.states[4,1]
         bicycle.s[2] = limitAngle(results.states[4,1])
         bicycle.s[4] = limitAngle(results.states[1,1])
         bicycle.s[5] = limitAngle(results.states[0,1])
         
+        bicycle.trajF[0,bicycle.i] = psi_d
+        
         self.step_pos(bicycle, Fx, Fy)
+        
+        psi_post = bicycle.s[2]
         
     def speed_control(self, v, vd):
             """Calculate the acceleration as a reaction to the current social
