@@ -161,11 +161,11 @@ class WhippleCarvalloDynamics(Dynamics):
         #initialize state space system
         self.update(bicycle.s[3])
         
-        #save initial state
+        #save initial state x0 = (psi, delta, phi, ddelta, dphi)
         self.x = np.zeros(5)
-        self.x[0] = bicycle.s[4]
-        self.x[2] = bicycle.s[5] 
-        self.x[4] = bicycle.s[2]
+        self.x[0] = bicycle.s[2]
+        self.x[1] = bicycle.s[5] 
+        self.x[2] = bicycle.s[4]
         
         #speed controller
         self.speed_controller = PIDcontroller(
@@ -228,18 +228,18 @@ class WhippleCarvalloDynamics(Dynamics):
             U=np.ones(2) * psi_d,
             squeeze=False,
         )
-        self.x = results.states[:,1]
+        self.x = results.states[:,1] #(roll, steer, droll, dsteer, yaw)
         
         self.psi_boundless = results.states[4,1]
-        bicycle.s[2] = limitAngle(results.states[4,1])
-        bicycle.s[4] = limitAngle(results.states[1,1])
-        bicycle.s[5] = limitAngle(results.states[0,1])
+        bicycle.s[2] = limitAngle(results.states[4,1])  #yaw
+        bicycle.s[4] = limitAngle(results.states[1,1])  #steer
+        bicycle.s[5] = limitAngle(results.states[0,1])  #roll
         
-        bicycle.trajF[0,bicycle.i] = psi_d
+        if bicycle.saveForces:
+            bicycle.trajF[0,bicycle.i] = psi_d
         
         self.step_pos(bicycle, Fx, Fy)
         
-        psi_post = bicycle.s[2]
         
     def speed_control(self, v, vd):
             """Calculate the acceleration as a reaction to the current social
@@ -302,18 +302,19 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
     def __init__(self, Bicycle):
         WhippleCarvalloDynamics.__init__(self, Bicycle)
         
+        #save initial state x0 = (psi, delta, phi, ddelta, dphi, Tdelta, dTdelta)
         self.x = np.r_[self.x, np.zeros(2)]
         
     def get_adaptive_gains(self, v):
         """
         Gain curves eyeballed from Moore (2012)
         """
-        k_delta = 58/10 * v
-        k_dphi = 3/10 * v - 3 
-        k_phi = 3
-        k_psi = 2.25/10 * v - 0.5
-        omega = 2.17 * 2 * np.pi
-        zeta = np.sqrt(2)
+        k_delta = 43#58/10 * v
+        k_dphi = -0.08#3.3/10 * v - 3 
+        k_phi = 8.5#3.3
+        k_psi = 0.173#2.25/10 * v - 0.5
+        omega = 28
+        zeta = np.sqrt(2)/2
         
         return k_delta, k_phi, k_dphi, k_psi, omega, zeta
        
@@ -334,10 +335,10 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
         A = np.zeros((7,7))
         A[5,6] = 1 
         A[6,:] = np.array([
-            -k_delta * omega**2,
-            0,
             -k_delta * k_phi * k_dphi * omega**2,
-            -k_delta * k_dphi * omega**2, 
+            -k_delta * omega**2,
+            -k_delta * k_dphi * omega**2,
+            0,
             -k_delta * k_phi * k_dphi * k_psi * omega**2,
             -omega**2,
             -2*omega * zeta])
@@ -354,8 +355,8 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
         Awc, Bwc, Cwc, Dwc = WhippleCarvalloDynamics.get_statespace_matrices(
             self, v)
         
-        A[:5, :5] = Awc
-        A[:5, 5] = Bwc.flatten()
+        A[0:5, 0:5] = Awc
+        A[0:5, 5] = Bwc.flatten()
         
         return A, B, C, D
         
