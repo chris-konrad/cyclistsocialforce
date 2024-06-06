@@ -32,6 +32,7 @@ from cyclistsocialforce.parameters import (
     CarParameters,
     VehicleParameters,
     BicycleParameters,
+    PlanarBicycleParameters,
     ParticleBicycleParameters,
     InvPendulumBicycleParameters,
     WhippleCarvalloBicycleParameters
@@ -41,7 +42,9 @@ from cyclistsocialforce.vizualisation import (
     BicycleDrawing2D,
     CarDrawing2D,
 )
-from cyclistsocialforce.dynamics import ParticleDynamicsXY, WhippleCarvalloDynamics, HessBikeRiderDynamics
+
+from cyclistsocialforce.dynamics import ParticleDynamicsXY, WhippleCarvalloDynamics, HessBikeRiderDynamics, PlanarTwoWheelerDynamics
+
 
 #------------------------- Vehicle Classes ------------------------------------
 
@@ -52,10 +55,11 @@ class Vehicle:
     the selected route.
     """
 
+    PARAMS_TYPE = VehicleParameters
     REQUIRED_PARAMS = ("d_arrived_inter", "hfov")
 
     def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None, 
+        self, s0, vid="unknown", route=(), saveForces=False, params=None, 
         dest_force_func = None, rep_force_func = None, dyn_step_func = None, drawing_class=VehicleDrawing, uncontrolled = False, 
         uncontrolled_traj = (), dynamics = None
     ):
@@ -81,7 +85,7 @@ class Vehicle:
         ----------
         s0 : List of float
             List containing the initial vehicle state (x, y, theta, v, delta).
-        userId : str, optional
+        vid : str, optional
             String for identifying this vehicle. Default = ""
         route : list of str, optional
             List of SUMO edge IDs describing the vehicle route. An empty list
@@ -132,9 +136,9 @@ class Vehicle:
 
         # set parameters if not already set by a child.
         if params is None:
-            self.params = VehicleParameters()
+            self.params = self.PARAMS_TYPE()
         elif params != 0:
-            assert isinstance(params, VehicleParameters)
+            assert isinstance(params, self.PARAMS_TYPE)
             self.params = params
 
         # time step counter
@@ -153,8 +157,8 @@ class Vehicle:
             self.trajF = np.zeros((2, int(30 / self.params.t_s)))
 
         # vehicle id
-        assert isinstance(userId, str), "User ID has to be a string."
-        self.id = userId
+        assert isinstance(vid, str), "User ID has to be a string."
+        self.id = vid
 
         # follow a route
         assert isinstance(route, tuple), "Route has to be a tuple"
@@ -215,6 +219,19 @@ class Vehicle:
         """
         return 0, 0
         
+    def verify_params_class(self, kwargs):
+        """Check if the params object in the keyword argument has the right 
+        type. Add the default parameters if kwargs has no params object.
+        """
+                
+        if "params" not in kwargs.keys():
+            kwargs = dict(kwargs, params = self.PARAMS_TYPE())
+        else:
+            assert isinstance(kwargs["params"], self.PARAMS_TYPE), ("params ",
+                "must be a {self.PARAMS_TYPE}",
+                f"object. Instead it was {type(kwargs['params'])}.")
+        return kwargs
+            
     def calcRepulsiveForce(self, x, y, psi):
         """
         Calculate the repulsive force of this vehicle using its 
@@ -287,9 +304,10 @@ class Vehicle:
         # trajectory and counter
         self.i += 1
         self.traj[:, self.i] = self.s
+
         if self.saveForces:
-            self.trajF[0,self.i] = F1
-            self.trajF[1,self.i] = F2
+            self.trajF[0, self.i] = F1
+            self.trajF[1, self.i] = F2
 
         # drawing
         self.update_drawing()
@@ -905,6 +923,9 @@ class UncontrolledVehicle(Vehicle):
             self.s = self.traj[:, self.i+1]
         
 class ParticleBicycle(Vehicle):
+    
+    PARAMS_TYPE = ParticleBicycleParameters
+    
     """ A bicycle with particle dynamics. 
     """
     def __init__(self, s0, **kwargs):
@@ -921,10 +942,10 @@ class ParticleBicycle(Vehicle):
         """
         
         assert len(s0) >= 4, "s0 has to have four elements: (x,y,psi,v)!"
-        s0 = s0[0:4]
+        #s0 = s0[0:4]
         
-        if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params = ParticleBicycleParameters())
+        # default parameters        
+        kwargs = self.verify_params_class(kwargs)
         
         Vehicle.__init__(self, s0, **kwargs)
 
@@ -939,9 +960,58 @@ class ParticleBicycle(Vehicle):
         # init drawing
         self.drawing_class = BicycleDrawing2D
         
+        # state names
+        self.s_names += [""] * (len(s0) - len(self.s_names))
+        
+class PlanarBicycle(Vehicle):
+    """ A bicycle with planar two-wheeler kinematics.
+    """
+    
+    PARAMS_TYPE = PlanarBicycleParameters
+    
+    def __init__(self, s0, **kwargs):
+        """
+        Create a planar bicycle
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0, delta0).
+        **kwargs : TYPE
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are 
+            overwritten by this constructor.
+        """
+        
+        assert len(s0) >= 5, ("s0 has to have at least five elements:",
+                              " (x, y, psi, v, delta)!")
+        
+        # default parameters        
+        kwargs = self.verify_params_class(kwargs)
+        
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init dynamics: Planar dynamics model with Fx/y input
+        self.dynamics = PlanarTwoWheelerDynamics(self)
+        self.dyn_step_func = self.dynamics.step
+        
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+        
+        # init drawing
+        self.drawing_class = BicycleDrawing2D
+        
+        # state names
+        self.s_names += ["delta[deg]"] 
+        self.s_names += [""] * (len(s0) - len(self.s_names))
+        
 class WhippleCarvalloBicycle(Vehicle):
     """ A bicycle with Whipple Carvallo Dynamics. 
     """
+    
+    PARAMS_TYPE = WhippleCarvalloBicycleParameters
+    
     def __init__(self, s0, **kwargs):
         """Create a Whipple Carvallo dynamics bicycle.
 
@@ -955,16 +1025,15 @@ class WhippleCarvalloBicycle(Vehicle):
             overwritten by this constructor.
         """
         
-        assert len(s0) == 6, "s0 has to have six elements: (x,y,psi,v)!"
+        assert len(s0) >= 6, ("s0 has to have at least six elements:",
+                              " (x, y, psi, v, delta, theta)!")
 
         # default parameters        
-        if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params = WhippleCarvalloBicycleParameters())
+        kwargs = self.verify_params_class(kwargs)
         
         Vehicle.__init__(self, s0, **kwargs)
 
-
-        # init dynamics: particle dynamics model with Fx/y input
+        # init dynamics: Whipple-Carvallo dynamics model with Fx/y input
         self.dynamics = WhippleCarvalloDynamics(self)
         self.dyn_step_func = self.dynamics.step
         
@@ -1022,7 +1091,10 @@ class HessBicycle(Vehicle):
     
 
 class StationaryVehicle(Vehicle):
-    def __init__(self, s0, userId="unknown", trajectory=(), params=None, drawing_class=CarDrawing2D):
+    
+    PARAMS_TYPE = CarParameters
+    
+    def __init__(self, s0, trajectory=(),**kwargs):
         """Object respresenting a stationary (uncontrolled or externally controlled) 
         vehicle.
 
@@ -1034,7 +1106,7 @@ class StationaryVehicle(Vehicle):
         ----------
         s0 : List of float
             List containing the initial car state (x, y, psi, v).
-        userId : str, optional
+        vid : str, optional
             String for identifying this vehicle. Default = ""
         trajectory : array-like, optional
             List or array of consecutive vehicle states where the first
@@ -1047,18 +1119,18 @@ class StationaryVehicle(Vehicle):
         None.
 
         """
-        if params is None:
-            params = VehicleParameters()
+        # default parameters        
+        kwargs = self.verify_params_class(kwargs)
 
         # call super
-        Vehicle.__init__(self, s0, userId, params=params)
+        Vehicle.__init__(self, s0, **kwargs)
 
         # overwrite empty trajectory property with the prediscribed trajectory.
         if len(trajectory) > 0:
             self.traj = np.array(trajectory)
 
         # class of drawings of this car.
-        self.drawing_class = drawing_class
+        self.drawing_class = CarDrawing2D
 
     def step(self, Fx=None, Fy=None):
         """
@@ -1115,7 +1187,7 @@ class Bicycle(Vehicle):
     )
 
     def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
+        self, s0, vid="unknown", route=(), saveForces=False, params=None
     ):
         """
 
@@ -1123,7 +1195,7 @@ class Bicycle(Vehicle):
         ----------
         s0 : List of float
             List containing the initial vehicle state (x, y, theta, v, delta).
-        userId : str, optional
+        vid : str, optional
             String for identifying this vehicle. Default = ""
         route : list of str, optional
             List of SUMO edge IDs describing the vehicle route. An empty list
@@ -1146,7 +1218,7 @@ class Bicycle(Vehicle):
             self.params = params
 
         # call super
-        Vehicle.__init__(self, s0, userId, route, saveForces, 0)
+        Vehicle.__init__(self, s0, vid, route, saveForces, 0)
 
         self.updateExcentricity()
 
@@ -1432,7 +1504,7 @@ class TwoDBicycle(Bicycle):
     )
 
     def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
+        self, s0, vid="unknown", route=(), saveForces=False, params=None
     ):
         """Create a new bicycle based on the 2D two-wheeler model.
 
@@ -1447,7 +1519,7 @@ class TwoDBicycle(Bicycle):
          ----------
          s0 : List of float
              List containing the initial vehicle state (x, y, theta, v, delta).
-         userId : str, optional
+         vid : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
              List of SUMO edge IDs describing the vehicle route. An empty list
@@ -1468,7 +1540,7 @@ class TwoDBicycle(Bicycle):
             assert isinstance(params, InvPendulumBicycleParameters)
             self.params = params
 
-        Bicycle.__init__(self, s0[0:5], userId, route, saveForces, 0)
+        Bicycle.__init__(self, s0[0:5], vid, route, saveForces, 0)
         
         self.s_names += ["delta[deg]"]
 
@@ -1788,6 +1860,8 @@ class InvPendulumBicycle(TwoDBicycle):
     5th Edition. https://doi.org/10.59490/65037d08763775ba4854da53 and is
     refered to as "inverted pendulum model" in the publication.
     """
+    
+    PARAMS_TYPE = InvPendulumBicycleParameters
 
     REQUIRED_PARAMS = (
         "l_1",
@@ -1808,8 +1882,7 @@ class InvPendulumBicycle(TwoDBicycle):
     )
 
     def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
-    ):
+        self, s0, **kwargs):
         """Create a new bicycle based on the inverted pendulum model.
 
          InvPendulumBicycle state variable definition:
@@ -1824,7 +1897,7 @@ class InvPendulumBicycle(TwoDBicycle):
          ----------
          s0 : List of float
              List containing the initial vehicle state (x, y, theta, v, delta).
-         userId : str, optional
+         vid : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
              List of SUMO edge IDs describing the vehicle route. An empty list
@@ -1840,13 +1913,10 @@ class InvPendulumBicycle(TwoDBicycle):
 
         """
 
-        if params is None:
-            self.params = InvPendulumBicycleParameters()
-        elif params != 0:
-            assert isinstance(params, InvPendulumBicycleParameters)
-            self.params = params
+        # default parameters        
+        kwargs = self.verify_params_class(kwargs)
 
-        TwoDBicycle.__init__(self, s0[0:5], userId, route, saveForces, 0)
+        TwoDBicycle.__init__(self, s0[0:5], **kwargs)
 
         # current state
         #   [  x  ]   horizontal position
