@@ -174,6 +174,12 @@ class WhippleCarvalloDynamics(Dynamics):
         
         self.psi_boundless = bicycle.s[2]
         
+        #roll and steer torque disturbance
+        self.p_roll_dist = 0.01
+        self.p_steer_dist = 0.00
+        self.T_roll_dist = 9000
+        self.T_steer_dist = 1000
+        
     def get_statespace_matrices(self, v):
         Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
         
@@ -183,8 +189,8 @@ class WhippleCarvalloDynamics(Dynamics):
         A[4,1] = self.A41_over_v * v
         A[4,3] = self.A43
         
-        B = np.zeros((5,1))
-        B[:4,0] = Bwc[:,1]  #disregard roll torque input
+        B = np.zeros((5,2))
+        B[:4,:] = Bwc
         
         #output
         C = np.zeros((1,A.shape[1]))
@@ -195,9 +201,16 @@ class WhippleCarvalloDynamics(Dynamics):
         
     def update(self, v):
         A, B, C, D = self.get_statespace_matrices(v)
-    
+        
         #pole placement
-        self.sys = from_pole_placement(A, B, C, D, self.poles)
+        self.sys = from_pole_placement(A, 
+                                       B[:,1][:,np.newaxis], 
+                                       C, 
+                                       D[:,1][:,np.newaxis], 
+                                       self.poles)
+        
+        #disturbance inputs
+        self.add_disturbance_inputs(B)
         
         
     def step(self, bicycle, Fx, Fy):
@@ -218,6 +231,19 @@ class WhippleCarvalloDynamics(Dynamics):
         #if abs(psi_d - bicycle.s[2]) > np.pi:
         #    dpsi = angleDifference(psi_d, bicycle.s[2])
         #    psi_d = bicycle.s[2] + dpsi
+        
+        rng = np.random.default_rng()
+        z_phi = self.T_roll_dist * rng.binomial(1, self.p_roll_dist) * (1 - 2 * rng.binomial(1, 0.5))
+        z_delta = self.T_steer_dist * rng.binomial(1, self.p_steer_dist) * (1 - 2 * rng.binomial(1, 0.5))
+        
+        if z_phi != 0.:
+            print(f"{z_phi:.1f} N roll torque disturbance!")
+            
+        if z_delta != 0.:
+            print(f"{z_delta:.1f} N steer torque disturbance!")
+        
+        u = np.array([psi_d, z_phi, z_delta])
+        U = np.c_[u, u]
 
         # calculate steer angle for stabilization
         results = ct.forced_response(
@@ -225,7 +251,7 @@ class WhippleCarvalloDynamics(Dynamics):
             T=np.array([0, bicycle.params.t_s]),
             X0=self.x,
             return_x=True,
-            U=np.ones(2) * psi_d,
+            U=U,
             squeeze=False,
         )
         self.x = results.states[:,1] #(roll, steer, droll, dsteer, yaw)
@@ -296,6 +322,32 @@ class WhippleCarvalloDynamics(Dynamics):
         bicycle.s[1] = y
         bicycle.s[3] = v
         
+    def add_disturbance_inputs(self, Bb):
+        """
+        Add roll and/or steer torque disturbance inputs to the statespace
+        system.
+        
+        Parameters
+        ----------
+        Bb : array-like
+            Input matrix of the the linear Whipple-Carvallo bicycle model
+        
+        """
+        
+        #if not (self.add_steer_dist or self.add_roll_dist):
+        #    pass
+        
+        BdKu = self.sys.B #bike yaw error -> steer torqe input
+        B = BdKu
+        
+        #if self.add_roll_dist:
+        B = np.c_[B, Bb[:,0]]    #bike roll torque disturbance input
+        
+        #if self.add_steer_dist:
+        B = np.c_[B, Bb[:,1]]    #bike steer torque disturbance input
+        D = np.zeros((self.sys.C.shape[0], B.shape[1]))
+        
+        self.sys = ct.StateSpace(self.sys.A, B, self.sys.C, D)
 
 class HessBikeRiderDynamics(WhippleCarvalloDynamics):
     
@@ -354,6 +406,8 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
         #Add the open-loop whipple model
         Awc, Bwc, Cwc, Dwc = WhippleCarvalloDynamics.get_statespace_matrices(
             self, v)
+        
+        Bwc = Bwc[:,1] #discard roll torque input
         
         A[0:5, 0:5] = Awc
         A[0:5, 5] = Bwc.flatten()
@@ -425,7 +479,7 @@ def from_pole_placement(A, B, C, D, poles, t_end=10.0, t_s=0.01):
     D : array-like
         Feedthrough matrix.
     poles : array-like
-        Desired poles of the sustem.
+        Desired poles of the system.
     t_end : float, optional
         Simulation time for determining the input gain matrix. 
         The default is 10.0.

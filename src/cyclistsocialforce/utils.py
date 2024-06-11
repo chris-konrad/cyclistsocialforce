@@ -42,7 +42,7 @@ def plot_fft(t, x):
     F = np.arange(0, 1/t_s, 1/(n*t_s))
     
     #plot
-    fig, ax = plt.subplots(1,2)
+    fig, ax = plt.subplots(2,1)
     ax[0].plot(t, x)
     ax[0].set_xlabel('t [s]')
     ax[1].plot(F[:int(n/2)], np.abs(X[:int(n/2)]))
