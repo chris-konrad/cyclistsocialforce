@@ -669,7 +669,7 @@ class Vehicle:
         else:
             self.setDestinations(x_i, y_i, reset=reset)
 
-    def add_drawing(self, ax, drawing=None):
+    def add_drawing(self, ax, drawing=None, **kwargs):
         """Adds a drawing to this vehicle.
 
         Parameters
@@ -679,14 +679,20 @@ class Vehicle:
         drawing : cyclistsocialforce.vizualisation.VehicleDrawing, optional
             The drawing to be added. If None, a drawing with default parameters
             is generated. Default is None.
+        **kwargs 
+            Any keyword arguments to this vehicles drawing parameters class. 
+            Only active if drawing=None.
         """
 
         if drawing is None:
-            self.drawing = self.drawing_class(ax, self)
+            self.drawing = self.drawing_class(
+                            ax,
+                            self,
+                            params=self.drawing_class.PARAMS_CLASS(**kwargs))
         else:
             assert isinstance(drawing, self.drawing_class), (
                 f"Provide a "
-                "CarDrawing2D {self.drawing_class.__name__} object! Instead "
+                "{self.drawing_class.__name__} object! Instead "
                 "you provided a {type(drawing)}."
             )
             self.drawing = drawing
