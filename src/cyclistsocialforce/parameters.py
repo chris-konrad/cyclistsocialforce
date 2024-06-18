@@ -1170,18 +1170,58 @@ class WhippleCarvalloBicycleParameters(BicycleParameters):
     
     def __init__(self, 
                  bicycleParameterDict = meijaard2007_browser_jason, 
-
                  poles = (-18 + 0j, -19 + 0, -20 + 0j, 
                           -1.2240726404163056+1.2879634520488243j, 
                           -1.2240726404163056-1.2879634520488243j),
+                 p_dist_roll = 0.00,
+                 p_dist_steer = 0.00,
+                 T_dist_roll = 9000,
+                 T_dist_steer = 1000,
                  **kwargs):
+        """
+        Generate a parameters object for the Whipple-Carvallo Bicycle.
+
+        Parameters
+        ----------
+        bicycleParameterDict : dict, optional
+            Dictionary with bicycle parameters from 
+            bicycleparameters.parameter_dicts. The default is 
+            bicycleparameters.parameter_dicts.meijaard2007_browser_jason.
+        poles : array-like, optional
+            Pole locations of the Full-state-feedback Whipple-Carvallo model. 
+            The default is (-18 + 0j, -19 + 0, -20 + 0j, -1.2240726404163056+
+            1.2879634520488243j, -1.2240726404163056-1.2879634520488243j), 
+            which was obtained from pilot calibration tests. 
+        p_dist_roll : float, optional
+            Probability p of a roll torque disturbance occuring at any given 
+            time step. The default is 0.00.
+        p_dist_steer : float, optional
+            Probability p of a steer torque disturbance occuring at any given 
+            time step. The default is 0.00.
+        T_dist_roll : float, optional
+            Magnitude of the disturbance roll torque. The default is 9000 N.
+        T_dist_steer : float, optional
+            Magnitude of the disturbance steer torque. The default is 1000 N.
+        **kwargs 
+            Keyword argumens of BicycleParameters.
+
+        Returns
+        -------
+        None.
+
+        """
         
         # Meijard(2007) model and parameter set from bicycleparameters
         p = Meijaard2007ParameterSet(bicycleParameterDict, True)
         m = Meijaard2007Model(p)
         
-        kwargs = dict(kwargs, l = p.parameters["w"], l_1 = p.parameters["w"] / 2)
+        #set wheelbase to the parameters in the parameter dict. This overwrites
+        #any manually given wheelbase. 
+        kwargs = dict(kwargs, 
+                      l = p.parameters["w"], 
+                      l_1 = p.parameters["w"] / 2)
         
+        #call constructor of super
         BicycleParameters.__init__(self, **kwargs)
         
         #physical parameters
@@ -1192,6 +1232,12 @@ class WhippleCarvalloBicycleParameters(BicycleParameters):
         
         #control parameters
         self.poles = poles
+        
+        #noise / disturbance parameters
+        self.p_dist_roll = p_dist_roll
+        self.p_dist_steer = p_dist_steer
+        self.T_dist_roll = T_dist_roll
+        self.T_dist_steer = T_dist_steer
         
     def get_state_space_matrices(self, v):
         """

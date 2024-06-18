@@ -101,7 +101,7 @@ class PlanarTwoWheelerDynamics(Dynamics):
         
         A[1,0] = v / self.w
         
-        self.sys = from_pole_placement(A, B, C, D, 
+        self.sys, self.gains = from_pole_placement(A, B, C, D, 
                                        self.poles)
     
     def step(self, bicycle, Fx, Fy):
@@ -175,10 +175,10 @@ class WhippleCarvalloDynamics(Dynamics):
         self.psi_boundless = bicycle.s[2]
         
         #roll and steer torque disturbance
-        self.p_roll_dist = 0.01
-        self.p_steer_dist = 0.00
-        self.T_roll_dist = 9000
-        self.T_steer_dist = 1000
+        self.p_dist_roll = bicycle.params.p_dist_roll
+        self.p_dist_steer = bicycle.params.p_dist_steer
+        self.T_dist_roll = bicycle.params.T_dist_roll
+        self.T_dist_steer = bicycle.params.T_dist_steer
         
     def get_statespace_matrices(self, v):
         Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
@@ -203,7 +203,7 @@ class WhippleCarvalloDynamics(Dynamics):
         A, B, C, D = self.get_statespace_matrices(v)
         
         #pole placement
-        self.sys = from_pole_placement(A, 
+        self.sys, self.gains = from_pole_placement(A, 
                                        B[:,1][:,np.newaxis], 
                                        C, 
                                        D[:,1][:,np.newaxis], 
@@ -233,8 +233,8 @@ class WhippleCarvalloDynamics(Dynamics):
         #    psi_d = bicycle.s[2] + dpsi
         
         rng = np.random.default_rng()
-        z_phi = self.T_roll_dist * rng.binomial(1, self.p_roll_dist) * (1 - 2 * rng.binomial(1, 0.5))
-        z_delta = self.T_steer_dist * rng.binomial(1, self.p_steer_dist) * (1 - 2 * rng.binomial(1, 0.5))
+        z_phi = self.T_dist_roll * rng.binomial(1, self.p_dist_roll) * (1 - 2 * rng.binomial(1, 0.5))
+        z_delta = self.T_dist_steer * rng.binomial(1, self.p_dist_steer) * (1 - 2 * rng.binomial(1, 0.5))
         
         if z_phi != 0.:
             print(f"{z_phi:.1f} N roll torque disturbance!")
@@ -334,16 +334,16 @@ class WhippleCarvalloDynamics(Dynamics):
         
         """
         
-        #if not (self.add_steer_dist or self.add_roll_dist):
+        #if not (self.add_dist_steer or self.add_dist_roll):
         #    pass
         
         BdKu = self.sys.B #bike yaw error -> steer torqe input
         B = BdKu
         
-        #if self.add_roll_dist:
+        #if self.add_dist_roll:
         B = np.c_[B, Bb[:,0]]    #bike roll torque disturbance input
         
-        #if self.add_steer_dist:
+        #if self.add_dist_steer:
         B = np.c_[B, Bb[:,1]]    #bike steer torque disturbance input
         D = np.zeros((self.sys.C.shape[0], B.shape[1]))
         
@@ -430,7 +430,7 @@ class ParticleDynamicsXY(Dynamics):
         C = np.array([[0,0,1,0], [0,0,0,1]])
         D = np.zeros((C.shape[0], B.shape[1]))
         
-        self.sys = from_pole_placement(A, B, C, D, self.poles)
+        self.sys, self.gains = from_pole_placement(A, B, C, D, self.poles)
         
         # save initial state x = [px, py, vx, vy]
         self.x = np.zeros(4)
@@ -489,8 +489,12 @@ def from_pole_placement(A, B, C, D, poles, t_end=10.0, t_s=0.01):
 
     Returns
     -------
-    control.StateSpace
+    state_space : control.StateSpace
         Statespace object.
+
+    gains : list
+        List of the computed gains that result in poles at the desired 
+        location. Given as (K_x, K_u). 
 
     """
 
@@ -515,6 +519,7 @@ def from_pole_placement(A, B, C, D, poles, t_end=10.0, t_s=0.01):
     for i in range(B.shape[1]):
         K_u[i,i] = 1/results.outputs[i,-1]
     
-    return ct.StateSpace(A - B @ K_x, B @ K_u, C, D)
+    gains = (K_x, K_u)
+    return ct.StateSpace(A - B @ K_x, B @ K_u, C, D), gains 
         
         
