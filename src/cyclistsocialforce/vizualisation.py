@@ -23,9 +23,9 @@ from cyclistsocialforce.parameters import (
 
 
 class VehicleDrawing:
-    
+
     PARAMS_CLASS = VehicleDrawingParameters
-    
+
     def __init__(
         self,
         ax,
@@ -429,7 +429,7 @@ class VehicleDrawing:
 
 
 class CarDrawing2D(VehicleDrawing):
-    
+
     def __init__(
         self,
         ax,
@@ -561,22 +561,16 @@ class CarDrawing2D(VehicleDrawing):
 
 
 class BicycleDrawing2D(VehicleDrawing):
-    
-    
+
     PARAMS_CLASS = BikeDrawing2DParameters
-    
+
     """A 2D drawing of a standard bicyle with rider from bird-eyes view.
 
     TODO: Dimensions and Colors should be specifieable in the BicycleParameters
     object.
     """
 
-    def __init__(
-        self,
-        ax,
-        bike,
-        params=None
-    ):
+    def __init__(self, ax, bike, params=None):
         """Create a 2D Bicycle Drawing made of polygons.
 
         Parameters
@@ -717,8 +711,8 @@ class BicycleDrawing2D(VehicleDrawing):
 
         """
         if len(s) < 6:
-            s = np.append(s, [0]*(6-len(s)))
-        
+            s = np.append(s, [0] * (6 - len(s)))
+
         R_psi = np.array(
             [[np.cos(s[2]), -np.sin(s[2])], [np.sin(s[2]), np.cos(s[2])]]
         )

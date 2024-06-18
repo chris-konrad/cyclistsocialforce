@@ -144,7 +144,7 @@ class Scenario:
             sleep(t_sleep)
 
         return len(msg)
-    
+
     def reset(self):
         self.i = 0
         self.t = self.t_0

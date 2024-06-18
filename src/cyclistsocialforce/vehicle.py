@@ -11,6 +11,7 @@ Hierarchy:
 
 @author: Christoph Schmidt
 """
+
 import numpy as np
 import control as ct
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ from cyclistsocialforce.utils import (
     angleDifference,
     to_deg,
     DiffEquation,
-    Angle
+    Angle,
 )
 from cyclistsocialforce.vehiclecontrol import PIDcontroller
 from cyclistsocialforce.parameters import (
@@ -35,7 +36,7 @@ from cyclistsocialforce.parameters import (
     PlanarBicycleParameters,
     ParticleBicycleParameters,
     InvPendulumBicycleParameters,
-    WhippleCarvalloBicycleParameters
+    WhippleCarvalloBicycleParameters,
 )
 from cyclistsocialforce.vizualisation import (
     VehicleDrawing,
@@ -43,10 +44,16 @@ from cyclistsocialforce.vizualisation import (
     CarDrawing2D,
 )
 
-from cyclistsocialforce.dynamics import ParticleDynamicsXY, WhippleCarvalloDynamics, HessBikeRiderDynamics, PlanarTwoWheelerDynamics
+from cyclistsocialforce.dynamics import (
+    ParticleDynamicsXY,
+    WhippleCarvalloDynamics,
+    HessBikeRiderDynamics,
+    PlanarTwoWheelerDynamics,
+)
 
 
-#------------------------- Vehicle Classes ------------------------------------
+# ------------------------- Vehicle Classes ------------------------------------
+
 
 class Vehicle:
     """Parent class for all vehicle types.
@@ -59,15 +66,25 @@ class Vehicle:
     REQUIRED_PARAMS = ("d_arrived_inter", "hfov")
 
     def __init__(
-        self, s0, vid="unknown", route=(), saveForces=False, params=None, 
-        dest_force_func = None, rep_force_func = None, dyn_step_func = None, drawing_class=VehicleDrawing, uncontrolled = False, 
-        uncontrolled_traj = (), dynamics = None
+        self,
+        s0,
+        vid="unknown",
+        route=(),
+        saveForces=False,
+        params=None,
+        dest_force_func=None,
+        rep_force_func=None,
+        dyn_step_func=None,
+        drawing_class=VehicleDrawing,
+        uncontrolled=False,
+        uncontrolled_traj=(),
+        dynamics=None,
     ):
         """Create a new Vehicle.
 
         Creates a generic vehicle that may be equipped with custom dynamics,
-        repulsive and destination forces. 
-        
+        repulsive and destination forces.
+
         Definition of state variables:
             x: position [m] in the global coordinate frame
             y: position [m] in the global coordinate frame
@@ -100,38 +117,38 @@ class Vehicle:
             with default parameters.
         dynamics : cyclistsocialforce.dynamics.Dynamics, optional
             The vehicle dynamics model of this vehicle. May be unused, depending
-            on dyn_step_func. The default is None. 
+            on dyn_step_func. The default is None.
         dyn_step_func : function, optional
-            Create a vehicle with a custom dynamic model by passing a 
+            Create a vehicle with a custom dynamic model by passing a
             step function with the signature None = dyn_step_func(Vehicle, F1, F2).
         rep_force_func : function, optional
-            Create a vehicle with a custom repulsive force by passing a handle 
-            with the signature F1, F2 = rep_force_func(Vehicle, x, y, psi), 
-            where Vehicle is this vehicle and x, y, and psi are the locations 
-            and orientations of other road users to be evaluated. F1, and F2 
-            are the two dimensions of the resulting force (Fx and Fy or Fv, 
+            Create a vehicle with a custom repulsive force by passing a handle
+            with the signature F1, F2 = rep_force_func(Vehicle, x, y, psi),
+            where Vehicle is this vehicle and x, y, and psi are the locations
+            and orientations of other road users to be evaluated. F1, and F2
+            are the two dimensions of the resulting force (Fx and Fy or Fv,
             Fpsi). If it uses parameters, these should be taken from
             Vehicle.params.rep_force["param_name"].
         dest_force_func : function, optional
-            Create a vehicle with custom destination force by passing a handle 
-            with the signature F1, F2 = dest_force_func(Vehicle), 
-            where Vehicle is this vehicle. F1, and F2 are the two dimensions of 
-            the resulting force (Fx and Fy or Fv and Fpsi). If it uses 
-            parameters, these should be taken from 
+            Create a vehicle with custom destination force by passing a handle
+            with the signature F1, F2 = dest_force_func(Vehicle),
+            where Vehicle is this vehicle. F1, and F2 are the two dimensions of
+            the resulting force (Fx and Fy or Fv and Fpsi). If it uses
+            parameters, these should be taken from
             Vehicle.params.dest_force["param_name"].
         drawing_class : cyclistsocialforce.visualization.VehicleDrawing, optional
             The class of drawing that this vehicle is represented by in an
-            animation. The default is VehicleDrawing. 
+            animation. The default is VehicleDrawing.
         uncontrolled : boolean, optional
-            Creates an uncontrolled vehicle that follows a prediscribed 
-            trajectory in its traj property rather then reacting to social 
+            Creates an uncontrolled vehicle that follows a prediscribed
+            trajectory in its traj property rather then reacting to social
             forces. To externally control this vehicle, make sure that traj
-            is populated correctly before any call to Vehicle.step(). The 
+            is populated correctly before any call to Vehicle.step(). The
             default is False
         uncontrolled_traj : list, optional
             Prediscribed trajectory given as a list of vehicle states for the
-            uncontrolled vehicle to follow. Is only used if uncontrolled is 
-            True. If empty, the vehicle does not move. The default is (). 
+            uncontrolled vehicle to follow. Is only used if uncontrolled is
+            True. If empty, the vehicle does not move. The default is ().
         """
 
         # set parameters if not already set by a child.
@@ -183,70 +200,72 @@ class Vehicle:
 
         # ego repulsive force
         self.F = []
-        
+
         # vehicle dynamics
         self.dynamics = dynamics
-        
+
         # destination force, repulsive force and dynamic model step functions
         self.dest_force_func = dest_force_func
         self.rep_force_func = rep_force_func
         self.dyn_step_func = dyn_step_func
-        
+
         # set to uncontrolled
         if uncontrolled:
             self.set_uncontrolled(uncontrolled_traj)
         else:
             self.uncontrolled = False
-            
+
         # state names
         self.s_names = ["x[m]", "y[m]", "phi[deg]", "v[m/s]"]
-            
+
     @staticmethod
     def step_follow_traj(Vehicle, F1=None, F2=None):
         """
-        Move the uncontrolled vehicle to the next state given by its 
+        Move the uncontrolled vehicle to the next state given by its
         predescribed fixed trajctory. The paramters Fx and Fy are ignored.
-        
+
         """
         # move only of there are still states in the predescribed trajectory.
-        if np.shape(Vehicle.traj)[1] > Vehicle.i+1:
-            Vehicle.s = Vehicle.traj[:, Vehicle.i+1]
-    
+        if np.shape(Vehicle.traj)[1] > Vehicle.i + 1:
+            Vehicle.s = Vehicle.traj[:, Vehicle.i + 1]
+
     @staticmethod
     def empty_dest_func(Vehicle):
-        """An empty destination force function that returns nothing for 
+        """An empty destination force function that returns nothing for
         uncontrolled vehicles.
         """
         return 0, 0
-        
+
     def verify_params_class(self, kwargs):
-        """Check if the params object in the keyword argument has the right 
+        """Check if the params object in the keyword argument has the right
         type. Add the default parameters if kwargs has no params object.
         """
-                
+
         if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params = self.PARAMS_TYPE())
+            kwargs = dict(kwargs, params=self.PARAMS_TYPE())
         else:
-            assert isinstance(kwargs["params"], self.PARAMS_TYPE), ("params ",
+            assert isinstance(kwargs["params"], self.PARAMS_TYPE), (
+                "params ",
                 "must be a {self.PARAMS_TYPE}",
-                f"object. Instead it was {type(kwargs['params'])}.")
+                f"object. Instead it was {type(kwargs['params'])}.",
+            )
         return kwargs
-            
+
     def calcRepulsiveForce(self, x, y, psi):
         """
-        Calculate the repulsive force of this vehicle using its 
+        Calculate the repulsive force of this vehicle using its
         rep_force_func property.
-        
+
         Parameters
         ----------
         x : array-like
-            x locations of the road users experiencing a repulsive force 
+            x locations of the road users experiencing a repulsive force
             coming from this vehicle.
         y : array-like
-            y locations of the road users experiencing a repulsive force 
+            y locations of the road users experiencing a repulsive force
             coming from this vehicle.
         psi : array-like
-            Orientations of the road users experiencing a repulsive force 
+            Orientations of the road users experiencing a repulsive force
             coming from this vehicle.
 
         Returns
@@ -265,7 +284,7 @@ class Vehicle:
 
     def calcDestinationForce(self):
         """
-        Calculate the destination force of this vehicle using its 
+        Calculate the destination force of this vehicle using its
         dest_force_func property.
 
         Returns
@@ -282,11 +301,11 @@ class Vehicle:
             return self.dest_force_func(self)
         else:
             return 0, 0
-        
+
     def step(self, F1=0, F2=0):
         """
-        Advance the vehicle by one simulation step using its dyn_step_func 
-        property. 
+        Advance the vehicle by one simulation step using its dyn_step_func
+        property.
 
         Parameters
         ----------
@@ -296,11 +315,11 @@ class Vehicle:
             Second component of the driving force. The default is 0.
 
         """
-        
+
         # model dynamics
         if self.dyn_step_func is not None:
             self.dyn_step_func(self, F1, F2)
-        
+
         # trajectory and counter
         self.i += 1
         self.traj[:, self.i] = self.s
@@ -311,12 +330,12 @@ class Vehicle:
 
         # drawing
         self.update_drawing()
-        
+
     def set_uncontrolled(self, traj=()):
         """
         Stop controlling the vehicle through social forces.
-                        
-        Instead, the vehicle follows a prediscribed trajectory in it's traj 
+
+        Instead, the vehicle follows a prediscribed trajectory in it's traj
         property. To externally control this vehicle, leave traj empty and make
         sure that the next step is populated before a to Vehicle.step().
 
@@ -328,14 +347,13 @@ class Vehicle:
             contains the evolution of states. If empty, the car will not move.
             The default is ().
         """
-        
+
         self.uncontrolled = True
-        if len(traj)>0:
-            self.traj = np.c_[self.traj[:,:self.i], traj]
-            
+        if len(traj) > 0:
+            self.traj = np.c_[self.traj[:, : self.i], traj]
+
         self.dyn_step_func = self.step_follow_traj
         self.dest_force_func = self.empty_dest_func
-        
 
     def updateNavState(self, stop):
         """Update the navigation state of the vehicle.
@@ -679,16 +697,15 @@ class Vehicle:
         drawing : cyclistsocialforce.vizualisation.VehicleDrawing, optional
             The drawing to be added. If None, a drawing with default parameters
             is generated. Default is None.
-        **kwargs 
-            Any keyword arguments to this vehicles drawing parameters class. 
+        **kwargs
+            Any keyword arguments to this vehicles drawing parameters class.
             Only active if drawing=None.
         """
 
         if drawing is None:
             self.drawing = self.drawing_class(
-                            ax,
-                            self,
-                            params=self.drawing_class.PARAMS_CLASS(**kwargs))
+                ax, self, params=self.drawing_class.PARAMS_CLASS(**kwargs)
+            )
         else:
             assert isinstance(drawing, self.drawing_class), (
                 f"Provide a "
@@ -726,7 +743,7 @@ class Vehicle:
             plotted. The default is None and creates a new set of axes.
         states_to_plot : list[bool] or list[int], optional
             States to be plotted. Can be a list of booleans or a list of ints
-            indicating which state should be plotted and which not. The default 
+            indicating which state should be plotted and which not. The default
             is None which plots all states.
         t_end : float, optional
             Time span of the plot in s. The default plots the full available
@@ -884,14 +901,15 @@ class Vehicle:
         axes[-1].legend()
 
         return axes
-    
+
+
 class UncontrolledVehicle(Vehicle):
     def __init__(self, s0, traj=(), **kwargs):
-        """Object respresenting a stationary (uncontrolled or externally 
+        """Object respresenting a stationary (uncontrolled or externally
         controlled) vehicle.
-                        
-        The follows the prediscribed trajectory in it's traj property. To 
-        externally control this vehicle, leave traj empty on initialisation 
+
+        The follows the prediscribed trajectory in it's traj property. To
+        externally control this vehicle, leave traj empty on initialisation
         and make sure that the next step is populated before a call to
         UncontrolledVehicle.step().
 
@@ -904,36 +922,37 @@ class UncontrolledVehicle(Vehicle):
             dimension contains the state variable and the second dimension
             contains the evolution of states. If empty, the car will not move.
             The default is ().
-        **kwargs 
+        **kwargs
             Any keyword argument of cyclistsocialforce.vehicle.Vehicle
         """
-        
-        kwargs = dict(kwargs, dyn_step_func = self.step_follow_traj)
-        
+
+        kwargs = dict(kwargs, dyn_step_func=self.step_follow_traj)
+
         # call super
         Vehicle.__init__(self, s0, **kwargs)
-        
+
         # overwrite empty trajectory property with the prediscribed trajectory.
         if len(traj) > 0:
             self.traj = np.array(traj)
-            
-            
+
     def step_follow_traj(self, F1=None, F2=None):
         """
-        Move the uncontrolled vehicle to the next state given by its 
+        Move the uncontrolled vehicle to the next state given by its
         predescribed fixed trajctory. The paramters Fx and Fy are ignored.
-        
+
         """
         # move only of there are still states in the predescribed trajectory.
-        if np.shape(self.traj)[1] > self.i+1:
-            self.s = self.traj[:, self.i+1]
-        
+        if np.shape(self.traj)[1] > self.i + 1:
+            self.s = self.traj[:, self.i + 1]
+
+
 class ParticleBicycle(Vehicle):
-    
+
     PARAMS_TYPE = ParticleBicycleParameters
-    
+
     """ A bicycle with particle dynamics. 
     """
+
     def __init__(self, s0, **kwargs):
         """Create a particle dynamics bicycle.
 
@@ -943,38 +962,38 @@ class ParticleBicycle(Vehicle):
             Initial state of the bike: (x0, y0, psi0, v0).
         **kwargs
             Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are 
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
             overwritten by this constructor.
         """
-        
+
         assert len(s0) >= 4, "s0 has to have four elements: (x,y,psi,v)!"
-        #s0 = s0[0:4]
-        
-        # default parameters        
+        # s0 = s0[0:4]
+
+        # default parameters
         kwargs = self.verify_params_class(kwargs)
-        
+
         Vehicle.__init__(self, s0, **kwargs)
 
         # init dynamics: particle dynamics model with Fx/y input
         self.dynamics = ParticleDynamicsXY(self)
         self.dyn_step_func = self.dynamics.step
-        
+
         # init forces
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
-        
+
         # init drawing
         self.drawing_class = BicycleDrawing2D
-        
+
         # state names
         self.s_names += [""] * (len(s0) - len(self.s_names))
-        
+
+
 class PlanarBicycle(Vehicle):
-    """ A bicycle with planar two-wheeler kinematics.
-    """
-    
+    """A bicycle with planar two-wheeler kinematics."""
+
     PARAMS_TYPE = PlanarBicycleParameters
-    
+
     def __init__(self, s0, **kwargs):
         """
         Create a planar bicycle
@@ -985,39 +1004,41 @@ class PlanarBicycle(Vehicle):
             Initial state of the bike: (x0, y0, psi0, v0, delta0).
         **kwargs : TYPE
             Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are 
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
             overwritten by this constructor.
         """
-        
-        assert len(s0) >= 5, ("s0 has to have at least five elements:",
-                              " (x, y, psi, v, delta)!")
-        
-        # default parameters        
+
+        assert len(s0) >= 5, (
+            "s0 has to have at least five elements:",
+            " (x, y, psi, v, delta)!",
+        )
+
+        # default parameters
         kwargs = self.verify_params_class(kwargs)
-        
+
         Vehicle.__init__(self, s0, **kwargs)
 
         # init dynamics: Planar dynamics model with Fx/y input
         self.dynamics = PlanarTwoWheelerDynamics(self)
         self.dyn_step_func = self.dynamics.step
-        
+
         # init forces
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
-        
+
         # init drawing
         self.drawing_class = BicycleDrawing2D
-        
+
         # state names
-        self.s_names += ["delta[deg]"] 
+        self.s_names += ["delta[deg]"]
         self.s_names += [""] * (len(s0) - len(self.s_names))
-        
+
+
 class WhippleCarvalloBicycle(Vehicle):
-    """ A bicycle with Whipple Carvallo Dynamics. 
-    """
-    
+    """A bicycle with Whipple Carvallo Dynamics."""
+
     PARAMS_TYPE = WhippleCarvalloBicycleParameters
-    
+
     def __init__(self, s0, **kwargs):
         """Create a Whipple Carvallo dynamics bicycle.
 
@@ -1027,38 +1048,42 @@ class WhippleCarvalloBicycle(Vehicle):
             Initial state of the bike: (x0, y0, psi0, v0, delta0, theta0).
         **kwargs
             Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are 
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
             overwritten by this constructor.
         """
-        
-        assert len(s0) >= 6, ("s0 has to have at least six elements:",
-                              " (x, y, psi, v, delta, theta)!")
 
-        # default parameters        
+        assert len(s0) >= 6, (
+            "s0 has to have at least six elements:",
+            " (x, y, psi, v, delta, theta)!",
+        )
+
+        # default parameters
         kwargs = self.verify_params_class(kwargs)
-        
+
         Vehicle.__init__(self, s0, **kwargs)
 
         # init dynamics: Whipple-Carvallo dynamics model with Fx/y input
         self.dynamics = WhippleCarvalloDynamics(self)
         self.dyn_step_func = self.dynamics.step
-        
+
         # init forces
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
-        
+
         # init drawing
         self.drawing_class = BicycleDrawing2D
-        
+
         # state names
         self.s_names += ["delta[deg]", "theta[deg]"]
-        
+
+
 class HessBicycle(Vehicle):
-    """ A bicycle with Whipple Carvallo Dynamics and the Hess Bicycle Rider 
+    """A bicycle with Whipple Carvallo Dynamics and the Hess Bicycle Rider
     Control model.
-    
+
     See Section "Control" in Moore (2012).
     """
+
     def __init__(self, s0, **kwargs):
         """Create a Hess bicycle.
 
@@ -1068,44 +1093,43 @@ class HessBicycle(Vehicle):
             Initial state of the bike: (x0, y0, psi0, v0, delta0, theta0).
         **kwargs
             Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are 
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
             overwritten by this constructor.
         """
-        
+
         assert len(s0) == 6, "s0 has to have six elements: (x,y,psi,v)!"
 
-        # default parameters        
+        # default parameters
         if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params = WhippleCarvalloBicycleParameters())
-        
-        Vehicle.__init__(self, s0, **kwargs)
+            kwargs = dict(kwargs, params=WhippleCarvalloBicycleParameters())
 
+        Vehicle.__init__(self, s0, **kwargs)
 
         # init dynamics: particle dynamics model with Fx/y input
         self.dynamics = HessBikeRiderDynamics(self)
         self.dyn_step_func = self.dynamics.step
-        
+
         # init forces
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
-        
+
         # init drawing
         self.drawing_class = BicycleDrawing2D
-        
+
         # state names
         self.s_names += ["delta[deg]", "theta[deg]"]
-    
+
 
 class StationaryVehicle(Vehicle):
-    
+
     PARAMS_TYPE = CarParameters
-    
-    def __init__(self, s0, trajectory=(),**kwargs):
-        """Object respresenting a stationary (uncontrolled or externally controlled) 
+
+    def __init__(self, s0, trajectory=(), **kwargs):
+        """Object respresenting a stationary (uncontrolled or externally controlled)
         vehicle.
 
-        The car may move following a prediscribed trajectory in it's traj 
-        property. To externally control this vehicle, populate its 
+        The car may move following a prediscribed trajectory in it's traj
+        property. To externally control this vehicle, populate its
         traj property with states.
 
         Parameters
@@ -1125,7 +1149,7 @@ class StationaryVehicle(Vehicle):
         None.
 
         """
-        # default parameters        
+        # default parameters
         kwargs = self.verify_params_class(kwargs)
 
         # call super
@@ -1162,9 +1186,9 @@ class StationaryVehicle(Vehicle):
         method = TwoDBicycle.calcRepulsiveForce
 
         return method(self, x, y, psi)
-    
+
     def calcDestinationForce(self):
-        return 0,0
+        return 0, 0
 
 
 class Bicycle(Vehicle):
@@ -1547,7 +1571,7 @@ class TwoDBicycle(Bicycle):
             self.params = params
 
         Bicycle.__init__(self, s0[0:5], vid, route, saveForces, 0)
-        
+
         self.s_names += ["delta[deg]"]
 
         # current state
@@ -1866,7 +1890,7 @@ class InvPendulumBicycle(TwoDBicycle):
     5th Edition. https://doi.org/10.59490/65037d08763775ba4854da53 and is
     refered to as "inverted pendulum model" in the publication.
     """
-    
+
     PARAMS_TYPE = InvPendulumBicycleParameters
 
     REQUIRED_PARAMS = (
@@ -1887,8 +1911,7 @@ class InvPendulumBicycle(TwoDBicycle):
         "hfov",
     )
 
-    def __init__(
-        self, s0, **kwargs):
+    def __init__(self, s0, **kwargs):
         """Create a new bicycle based on the inverted pendulum model.
 
          InvPendulumBicycle state variable definition:
@@ -1919,7 +1942,7 @@ class InvPendulumBicycle(TwoDBicycle):
 
         """
 
-        # default parameters        
+        # default parameters
         kwargs = self.verify_params_class(kwargs)
 
         TwoDBicycle.__init__(self, s0[0:5], **kwargs)
@@ -2165,10 +2188,11 @@ class InvPendulumBicycle(TwoDBicycle):
         )
 
         self.zrid[0] = not cvwalk and (self.zrid[1] and cdelta or self.zrid[0])
-        self.zrid[1] = not self.zrid[0]    
+        self.zrid[1] = not self.zrid[0]
 
 
 ### Collection of Destination force functions
+
 
 def calc_direct_approach_dest_force(Vehicle):
     """Calculates force vectors from locations in x, y to the current
