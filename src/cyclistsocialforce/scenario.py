@@ -144,6 +144,10 @@ class Scenario:
             sleep(t_sleep)
 
         return len(msg)
+    
+    def reset(self):
+        self.i = 0
+        self.t = self.t_0
 
     def init_animation(self):
         """Initialize the animation of the scenario.
