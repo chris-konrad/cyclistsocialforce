@@ -23,6 +23,9 @@ from cyclistsocialforce.parameters import (
 
 
 class VehicleDrawing:
+    
+    PARAMS_CLASS = VehicleDrawingParameters
+    
     def __init__(
         self,
         ax,
@@ -32,7 +35,7 @@ class VehicleDrawing:
         """Drawing of the peripherals common to all road users"""
 
         if params is None:
-            self.params = VehicleDrawingParameters()
+            self.params = self.PARAMS_CLASS()
         else:
             self.params = params
 
@@ -426,6 +429,7 @@ class VehicleDrawing:
 
 
 class CarDrawing2D(VehicleDrawing):
+    
     def __init__(
         self,
         ax,
@@ -557,6 +561,10 @@ class CarDrawing2D(VehicleDrawing):
 
 
 class BicycleDrawing2D(VehicleDrawing):
+    
+    
+    PARAMS_CLASS = BikeDrawing2DParameters
+    
     """A 2D drawing of a standard bicyle with rider from bird-eyes view.
 
     TODO: Dimensions and Colors should be specifieable in the BicycleParameters
@@ -567,18 +575,7 @@ class BicycleDrawing2D(VehicleDrawing):
         self,
         ax,
         bike,
-        params=None,
-        proj_3d=False,
-        draw_roll_indicator=True,
-        draw_force_resulting=True,
-        draw_force_destination=True,
-        draw_forces_repulsive=True,
-        draw_trajectory=False,
-        draw_nextdest=False,
-        draw_destqueue=False,
-        draw_pastdest=False,
-        draw_name=False,
-        animated=False,
+        params=None
     ):
         """Create a 2D Bicycle Drawing made of polygons.
 
@@ -607,7 +604,7 @@ class BicycleDrawing2D(VehicleDrawing):
 
         """
         if params is None:
-            params = BikeDrawing2DParameters()
+            params = self.PARAMS_CLASS()
 
         super().__init__(ax, bike, params=params)
 
