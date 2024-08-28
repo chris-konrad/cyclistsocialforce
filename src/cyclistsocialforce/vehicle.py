@@ -714,7 +714,7 @@ class Vehicle:
             )
             self.drawing = drawing
 
-    def update_drawing(self):
+    def update_drawing(self, Fdest=None, Frep=None, Fres=None):
         """Update this vehicles drawing with the current vehicle state.
 
         Returns
@@ -724,7 +724,7 @@ class Vehicle:
         """
 
         if self.drawing is not None:
-            self.drawing.update(self)
+            self.drawing.update(self, Fdest=Fdest, Frep=Frep, Fres=Fres)
 
     def plot_states(
         self,

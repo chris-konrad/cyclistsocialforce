@@ -78,8 +78,8 @@ class VehicleDrawing:
         (self.ghandles["trajectory"],) = self.ax.plot(
             vehicle.traj[0],
             vehicle.traj[1],
-            color=(0.0 / 255, 166.0 / 255, 214.0 / 255),
-            linewidth=1,
+            color=self.params.traj_line_color,
+            linewidth=self.params.traj_line_width,
             animated=self.params.animated,
         )
         self.ax.draw_artist(self.ghandles["trajectory"])
@@ -110,7 +110,7 @@ class VehicleDrawing:
                 vehicle.dest[1],
                 marker="x",
                 markersize=5,
-                markeredgecolor="gray",
+                markeredgecolor=self.params.dest_marker_color_cur,
                 markeredgewidth=2,
                 animated=self.params.animated,
                 zorder=3,
@@ -133,7 +133,7 @@ class VehicleDrawing:
                 vehicle.dest[1],
                 marker="x",
                 markersize=5,
-                markeredgecolor=(0.0 / 255, 166.0 / 255, 214.0 / 255),
+                markeredgecolor=self.params.dest_marker_color_qeu,
                 markeredgewidth=1,
                 animated=self.params.animated,
                 zorder=3,
@@ -146,7 +146,7 @@ class VehicleDrawing:
                 linestyle="None",
                 marker="x",
                 markersize=5,
-                markeredgecolor="gray",
+                markeredgecolor=self.params.dest_marker_color_qeu,
                 markeredgewidth=1,
                 animated=self.params.animated,
                 zorder=3,
@@ -188,8 +188,8 @@ class VehicleDrawing:
             vehicle.s[0],
             vehicle.s[1] + 1,
             vehicle.id,
-            color="black",
-            fontsize=8,
+            color=self.params.name_font_color,
+            fontsize=self.params.name_font_size,
             animated=self.params.animated,
             zorder=4,
         )
@@ -647,7 +647,7 @@ class BicycleDrawing2D(VehicleDrawing):
             )
             self.ax.add_collection(self.ghandles["bike_polygon"])
 
-    def update(self, bicycle):
+    def update(self, bicycle, Fdest=None, Frep=None, Fres=None):
         """Updates all elements of the bicycle drawing.
 
         Parameters
@@ -655,7 +655,7 @@ class BicycleDrawing2D(VehicleDrawing):
         bicycle : cyclistsocialforce.Bicycle
             Any bicycle from the vehicle module
         """
-        super().update(bicycle)
+        super().update(bicycle, Fdest=Fdest, Frep=Frep, Fres=Fres)
         self.update_bike_polygon(bicycle)
 
     def update_bike_polygon(self, bike):
