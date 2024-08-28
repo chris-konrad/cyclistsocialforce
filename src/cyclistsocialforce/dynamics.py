@@ -172,11 +172,11 @@ class WhippleCarvalloDynamics(Dynamics):
         # initialize state space system
         self.update(bicycle.s[3])
 
-        # save initial state x0 = (psi, delta, phi, ddelta, dphi)
+        # save initial state x0 = (phi, delta, dphi, ddelta, psi)
         self.x = np.zeros(5)
-        self.x[0] = bicycle.s[2]
-        self.x[1] = bicycle.s[5]
-        self.x[2] = bicycle.s[4]
+        self.x[4] = bicycle.s[2]
+        self.x[0] = bicycle.s[5]
+        self.x[1] = bicycle.s[4]
 
         # speed controller
         self.speed_controller = PIDcontroller(
