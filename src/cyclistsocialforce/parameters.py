@@ -40,6 +40,12 @@ class VehicleDrawingParameters:
         force_color_dest=None,
         force_color_rep=None,
         force_color_res=None,
+        dest_marker_color_cur=None,
+        dest_marker_color_qeu=None,
+        traj_line_width=None,
+        traj_line_color=None,
+        name_font_size=None,
+        name_font_color=None,
     ):
         self.draw_force_resulting = draw_force_resulting
         self.draw_force_destination = draw_force_destination
@@ -56,6 +62,61 @@ class VehicleDrawingParameters:
         self.init_forcearrow_colors(
             force_color_dest, force_color_rep, force_color_res
         )
+        
+        self.init_destmarker_colors(dest_marker_color_cur, 
+                                    dest_marker_color_qeu)
+        
+        self.init_trajectory_style(traj_line_width, traj_line_color)
+        
+        self.init_name_style(name_font_size, name_font_color)
+        
+    def init_name_style(self, name_font_size=None, name_font_color=None):
+        
+        if name_font_size is None:
+            name_font_size = 8
+        if name_font_color is None:
+            name_font_color = "black"
+
+        self.name_font_size = name_font_size
+        self.name_font_color = name_font_color
+        
+    def init_trajectory_style(
+        self, traj_line_width=None, traj_line_color=None
+        ):
+        
+        if traj_line_width is None:
+            traj_line_width = 1
+        if traj_line_color is None:
+            traj_line_color = self.tud_colors.get("cyaan")
+
+        self.traj_line_width = traj_line_width
+        self.traj_line_color = traj_line_color
+        
+    def init_destmarker_colors(
+        self, dest_marker_color_cur=None, dest_marker_color_qeu=None
+    ):
+        """Initializes the marker colors of the destination markers.
+        
+
+        Parameters
+        ----------
+        dest_marker_color_cur : color, optional
+            The default is gray.
+        dest_marker_color_qeu : color, optional
+            The default is gray.
+
+        Returns
+        -------
+        None.
+
+        """
+        if dest_marker_color_cur is None:
+            dest_marker_color_cur = "gray"
+        if dest_marker_color_qeu is None:
+            dest_marker_color_qeu = "gray"
+
+        self.dest_marker_color_cur = dest_marker_color_cur
+        self.dest_marker_color_qeu = dest_marker_color_qeu
 
     def init_forcearrow_colors(
         self, force_color_dest=None, force_color_rep=None, force_color_res=None
@@ -105,7 +166,6 @@ class BikeDrawing2DParameters(VehicleDrawingParameters):
 
     def __init__(
         self,
-        animated=False,
         bike_color_frame=None,
         bike_color_wheels=None,
         rider_color_body=None,
@@ -113,19 +173,9 @@ class BikeDrawing2DParameters(VehicleDrawingParameters):
         roll_indicator_color_edge=None,
         roll_indicator_color_bg=None,
         roll_indicator_color_marker=None,
-        force_color_dest=None,
-        force_color_rep=None,
-        force_color_res=None,
-        draw_force_resulting=True,
-        draw_force_destination=True,
-        draw_forces_repulsive=True,
         draw_roll_indicator=True,
-        draw_trajectory=True,
-        draw_nextdest=False,
-        draw_destqueue=True,
-        draw_pastdest=True,
-        draw_name=True,
         proj_3d=False,
+        **kwargs,
     ):
         """Create a bicycle drawing parameters object.
 
@@ -142,27 +192,12 @@ class BikeDrawing2DParameters(VehicleDrawingParameters):
             from this list.
         rider_color_head : color, optional
             The default is TU Delft cyan.
-        rider_color_edge : color, optional
-            The default is TU Delft cyan.
-        rider_color_background : color, optional
-            The default is TU Delft cyan.
-        rider_color_marker : color, optional
-            The default is TU Delft cyan.
-        force_color_dest : color, optional
-            The default is gray.
-        force_color_rep : color, optional
-            The default is gray.
-        force_color_res : color, optional
-            The default is something dark.
-        draw_force_resulting : boolean, optional
-            Show arrows for the resulting force experienced by the cyclist. The default
-            is true.
-        draw_forces_repulsive : boolean, optional
-            Show arrows for the repulsive forces experienced by the cyclist.
-            The default is true.
-        draw_force_destination : boolean, optional
-            Show arrows for the destination forces experienced by the cyclist.
-            The default is true.
+        roll_indicator_color_edge : color, optional
+            The default is black,
+        roll_indicator_color_bg : color, optional
+            The default is None (transparent).
+        roll_indicator_color_marker : color, optional
+            The default is red.
         draw_roll_indicator : boolean, optional
             Adds the roll indicator colors to the color lists.
             The default is True.
@@ -175,20 +210,7 @@ class BikeDrawing2DParameters(VehicleDrawingParameters):
         None.
 
         """
-        super().__init__(
-            animated,
-            draw_force_resulting,
-            draw_force_destination,
-            draw_forces_repulsive,
-            draw_trajectory,
-            draw_nextdest,
-            draw_destqueue,
-            draw_pastdest,
-            draw_name,
-            force_color_dest,
-            force_color_rep,
-            force_color_res,
-        )
+        super().__init__(**kwargs)
 
         self.proj_3d = proj_3d
         self.draw_roll_indicator = draw_roll_indicator
@@ -230,12 +252,12 @@ class BikeDrawing2DParameters(VehicleDrawingParameters):
             from this list.
         rider_color_head : color, optional
             The default is TU Delft cyan.
-        rider_color_edge : color, optional
-            The default is TU Delft cyan.
-        rider_color_background : color, optional
-            The default is TU Delft cyan.
-        rider_color_marker : color, optional
-            The default is TU Delft cyan.
+        roll_indicator_color_edge : color, optional
+            The default is black,
+        roll_indicator_color_bg : color, optional
+            The default is None (transparent).
+        roll_indicator_color_marker : color, optional
+            The default is red.
 
         Returns
         -------
