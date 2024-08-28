@@ -112,12 +112,12 @@ def clearAxes(ax):
 
 def angleSUMOtoSFM(theta):
     """Convert angle between SUMO definition and SFM definition"""
-    return limitAngle((np.pi / 2) - toRad(theta))
+    return limitAngle((np.pi / 2) - to_rad(theta))
 
 
 def angleSFMtoSUMO(theta):
     """Convert angle between SUMO definition and SFM definition"""
-    return toDeg(expandAngle((np.pi / 2) - theta))
+    return to_deg(expandAngle((np.pi / 2) - theta))
 
 
 def limitAngle(theta):
