@@ -12,10 +12,11 @@ import traceback
 from math import sqrt, floor, ceil
 
 import cyclistsocialforce.config as cfg
-from cyclistsocialforce.vehicle import Bicycle, TwoDBicycle, InvPendulumBicycle
+from cyclistsocialforce.vehicle import Bicycle, TwoDBicycle, InvPendulumBicycle, WhippleCarvalloBicycle
 from cyclistsocialforce.parameters import (
     BicycleParameters,
     InvPendulumBicycleParameters,
+    WhippleCarvalloBicycleParameters,
 )
 from cyclistsocialforce.intersection import SocialForceIntersection
 from cyclistsocialforce.utils import angleSUMOtoSFM
@@ -177,6 +178,7 @@ class SUMOScenario:
         animate=False,
         t_s=0.01,
         run_time_factor=1.0,
+        bicycle_drawing_kwargs={},
     ):
         """Create a Scenario object based on a SUMO network file (.net.xml)
 
@@ -206,7 +208,7 @@ class SUMOScenario:
         self.t_s = t_s
 
         # parse bicyle type
-        self.BICYCLE_TYPES = ("Bicycle", "TwoDBicycle", "InvPendulumBicycle")
+        self.BICYCLE_TYPES = ("Bicycle", "TwoDBicycle", "InvPendulumBicycle", 'WhippleCarvalloBicycle')
         assert bicycle_type in self.BICYCLE_TYPES, (
             f"Parameter bicycle_type has to be any of "
             f"{self.BICYCLE_TYPES}, instead it was '{bicycle_type}'."
@@ -257,6 +259,7 @@ class SUMOScenario:
                         activate_sumo_cosimulation=True,
                         id=nodes[i].getID(),
                         net=net,
+                        bicycle_drawing_kwargs=bicycle_drawing_kwargs,
                     )
                 )
                 figManager = plt.get_current_fig_manager()
@@ -324,7 +327,11 @@ class SUMOScenario:
                 elif self.bicycle_type == self.BICYCLE_TYPES[2]:
                     s.append(0.0)
                     params = InvPendulumBicycleParameters(t_s=self.t_s)
-                    unew = InvPendulumBicycle(s, i, route, params=params)
+                    unew = InvPendulumBicycle(s, vid=str(i), route=route, params=params)
+                elif self.bicycle_type == self.BICYCLE_TYPES[3]:
+                    s.append(0.0)
+                    params = WhippleCarvalloBicycleParameters(t_s=self.t_s)
+                    unew = WhippleCarvalloBicycle(s, vid=str(i), route=route, params=params)
                 else:
                     raise ValueError(
                         f"Unknown bicycle type '{self.bicycle_type}'! Known"
