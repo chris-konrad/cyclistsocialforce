@@ -731,6 +731,7 @@ class Vehicle:
         axes: list[Axes] = None,
         states_to_plot: list[bool] = None,
         t_end: float = None,
+        plot_over_time = False,
         **plot_kw,
     ) -> list[Axes]:
         """Plot the state trajectories
@@ -795,6 +796,9 @@ class Vehicle:
 
         if "label" not in plot_kw:
             plot_kw["label"] = self.id
+            
+        if plot_over_time:
+            t = self.params.t_s * np.arange(i_end)
 
         for ax, i_s, name in zip(
             axes,
@@ -804,7 +808,10 @@ class Vehicle:
             data_to_plot = self.traj[i_s[0], :i_end]
             if "deg" in name:
                 data_to_plot = 180 * data_to_plot / np.pi
-            ax.plot(data_to_plot, **plot_kw)
+            if plot_over_time:
+                ax.plot(t, data_to_plot, **plot_kw)
+            else:
+                ax.plot(data_to_plot, **plot_kw)
 
         if axes[-1].get_legend() is not None:
             axes[-1].get_legend().remove()
