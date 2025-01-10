@@ -208,15 +208,16 @@ class VehicleDrawing:
 
         """
 
+
         if self.params.draw_force_destination:
             self.force_handle_dest = self.ax.arrow(
                 0,
                 0,
                 0,
                 0,
-                head_width=0.3,
-                head_length=0.4,
-                linewidth=1,
+                head_width=self.params.force_head_width,
+                head_length=self.params.force_head_length,
+                linewidth=self.params.force_linewidth,
                 edgecolor=self.params.force_color_dest,
                 facecolor=self.params.force_color_dest,
                 animated=self.params.animated,
@@ -229,9 +230,9 @@ class VehicleDrawing:
                 0,
                 0,
                 0,
-                head_width=0.3,
-                head_length=0.4,
-                linewidth=1,
+                head_width=self.params.force_head_width,
+                head_length=self.params.force_head_length,
+                linewidth=self.params.force_linewidth,
                 edgecolor=self.params.force_color_res,
                 facecolor=self.params.force_color_res,
                 animated=self.params.animated,
@@ -382,16 +383,16 @@ class VehicleDrawing:
                         0,
                         0,
                         0,
-                        head_width=0.3,
-                        head_length=0.4,
-                        linewidth=1,
+                        head_width=self.params.force_head_width,
+                        head_length=self.params.force_head_length,
+                        linewidth=self.params.force_linewidth,
                         edgecolor=self.params.force_color_res,
                         facecolor=self.params.force_color_res,
                         animated=self.params.animated,
                         zorder=3,
                     )
                 )
-            if len(len(self.force_handles_rep)) > n:
+            if len(self.force_handles_rep) > n:
                 self.force_handle_rep = self.force_handle_rep[:n]
 
             for a, fx, fy in zip(self.force_handles_rep, Frep[0], Frep[1]):
@@ -529,7 +530,7 @@ class CarDrawing2D(VehicleDrawing):
             )
         )
 
-    def update(self, car):
+    def update(self, car, **kwargs):
         """Updates all elements of the car drawing.
 
         Parameters

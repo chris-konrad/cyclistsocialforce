@@ -40,6 +40,9 @@ class VehicleDrawingParameters:
         force_color_dest=None,
         force_color_rep=None,
         force_color_res=None,
+        force_head_width=None,
+        force_head_length=None,
+        force_linewidth=None,
         dest_marker_color_cur=None,
         dest_marker_color_qeu=None,
         traj_line_width=None,
@@ -59,8 +62,9 @@ class VehicleDrawingParameters:
 
         self.tud_colors = TUDcolors()
 
-        self.init_forcearrow_colors(
-            force_color_dest, force_color_rep, force_color_res
+        self.init_forcearrow_style(
+            force_color_dest, force_color_rep, force_color_res, force_head_width, force_head_length,
+            force_linewidth
         )
         
         self.init_destmarker_colors(dest_marker_color_cur, 
@@ -118,8 +122,9 @@ class VehicleDrawingParameters:
         self.dest_marker_color_cur = dest_marker_color_cur
         self.dest_marker_color_qeu = dest_marker_color_qeu
 
-    def init_forcearrow_colors(
-        self, force_color_dest=None, force_color_rep=None, force_color_res=None
+    def init_forcearrow_style(
+        self, force_color_dest=None, force_color_rep=None, force_color_res=None,
+        force_head_width=None, force_head_length=None, force_linewidth=None
     ):
         """Initializes the face and edge colors for the force arrows.
 
@@ -131,6 +136,13 @@ class VehicleDrawingParameters:
             The default is gray.
         force_color_res : color, optional
             The default is something dark.
+        force_head_width : float, optional
+            The default is 0.4
+        force_head_length : float, optional
+            The default is 0.4
+        force_linewidth : float, optional
+            The default is 1.0
+        
 
         Returns
         -------
@@ -143,10 +155,19 @@ class VehicleDrawingParameters:
             force_color_rep = "gray"
         if force_color_res is None:
             force_color_res = (12.0 / 255, 35.0 / 255, 64.0 / 255)
+        if force_head_width is None:
+            force_head_width = 0.3
+        if force_head_length is None:
+            force_head_length = 0.4
+        if force_linewidth is None:
+            force_linewidth = 1.0           
 
         self.force_color_dest = force_color_dest
         self.force_color_rep = force_color_rep
         self.force_color_res = force_color_res
+        self.force_head_length = force_head_length
+        self.force_head_width = force_head_width
+        self.force_linewidth = force_linewidth
 
     def get_draw_forces(self):
         return (
@@ -595,8 +616,7 @@ class VehicleParameters:
 
     @f_0.setter
     def f_0(self, f_0) -> None:
-        if not isinstance(f_0, float):
-            raise TypeError("f_0 must be a float.")
+        f_0 = float(f_0)
         if not f_0 >= 0:
             msg = f"f_0 must be >=0, instead it was {f_0:.2f}"
             if self.calib_mode:
@@ -1154,12 +1174,11 @@ class ParticleBicycleParameters(BicycleParameters):
     N_POLES = 4
     
     def __init__(self, 
-                 poles = (0 + 0j, 
-                          0 + 0j, 
-                          -0.97626953125+0j + 0j, 
-                          -0.97626953125+0j + 0j), 
+                 poles = None, 
+                 gains = None,
                  **kwargs):
         BicycleParameters.__init__(self, **kwargs)
+        self.gains = gains
         self.poles = poles
         
     @property
@@ -1167,6 +1186,11 @@ class ParticleBicycleParameters(BicycleParameters):
         return self._poles
     @poles.setter
     def poles(self, poles):
+        if poles is None:
+            poles = (0 + 0j, 
+                     0 + 0j, 
+                     -0.97626953125+0j + 0j, 
+                     -0.97626953125+0j + 0j)
         if len(poles) != 4:
             msg = "ParticleBicycleParameters must have four poles! Instead" \
                   f"you provided {len(poles)}: poles = {poles}"
@@ -1199,6 +1223,7 @@ class WhippleCarvalloBicycleParameters(BicycleParameters):
                  p_dist_steer = 0.00,
                  T_dist_roll = 9000,
                  T_dist_steer = 1000,
+                 gains = None,
                  **kwargs):
         """
         Generate a parameters object for the Whipple-Carvallo Bicycle.
@@ -1254,6 +1279,7 @@ class WhippleCarvalloBicycleParameters(BicycleParameters):
         
         #control parameters
         self.poles = poles
+        self.gains = gains
         
         #noise / disturbance parameters
         self.p_dist_roll = p_dist_roll
@@ -1730,20 +1756,20 @@ class InvPendulumBicycleParameters(BicycleParameters):
         # K_u = -2.1591800063357907
 
         params_kx = np.array(
-            #[
-            #    [3.48203226e02, -5.12057324e03, 1.58364873e04, -1.98073306e04],
-            #    [-4.51700000e01, 0.00000000e00, 0.00000000e00, 0.00000000e00],
-            #    [-9.16379250e02, 1.31769807e04, -6.57341643e04, 8.22163589e04],
-            #    [3.20214069e02, -4.69953797e03, 1.66378680e04, -2.43114309e04],
-            #    [2.87549256e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00],
-            #]
             [
-             [ 1.27977414e+02, -1.94670000e+03,  2.43962111e+03, -3.02454886e+03],
-             [-4.51700000e+01,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
-             [-2.26494120e+00,  2.85310350e+00, -1.01263905e+04,  1.25543113e+04],
-             [ 9.05946737e+00, -1.99832338e+02, -2.45608874e+03, -2.08063358e+02],
-             [-3.38428663e-09, -2.27913445e+03,  0.00000000e+00,  0.00000000e+00],
-             ]
+                [3.48203226e02, -5.12057324e03, 1.58364873e04, -1.98073306e04],
+                [-4.51700000e01, 0.00000000e00, 0.00000000e00, 0.00000000e00],
+                [-9.16379250e02, 1.31769807e04, -6.57341643e04, 8.22163589e04],
+                [3.20214069e02, -4.69953797e03, 1.66378680e04, -2.43114309e04],
+                [2.87549256e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00],
+            ]
+            #[
+            # [ 1.27977414e+02, -1.94670000e+03,  2.43962111e+03, -3.02454886e+03],
+            # [-4.51700000e+01,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
+            # [-2.26494120e+00,  2.85310350e+00, -1.01263905e+04,  1.25543113e+04],
+            # [ 9.05946737e+00, -1.99832338e+02, -2.45608874e+03, -2.08063358e+02],
+            # [-3.38428663e-09, -2.27913445e+03,  0.00000000e+00,  0.00000000e+00],
+            # ]
         )
 
         params_ku = np.array(
