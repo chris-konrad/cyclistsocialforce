@@ -6,8 +6,11 @@ Created on Thu Apr 20 10:19:21 2023.
 """
 
 import sys
+import os
 import numpy as np
 import traceback
+import tempfile
+import cv2
 
 from math import sqrt, floor, ceil
 
@@ -20,10 +23,11 @@ from cyclistsocialforce.parameters import (
 )
 from cyclistsocialforce.intersection import SocialForceIntersection
 from cyclistsocialforce.utils import angleSUMOtoSFM
+from mypyutils.misc import none_switch
 
 import matplotlib.pyplot as plt
 
-from time import time, sleep
+from time import time, sleep, strftime
 from datetime import timedelta
 
 try:
@@ -47,6 +51,11 @@ except ImportError:
 
 
 class Scenario:
+    
+    #default writeout parameters
+    FNAME_ANIMATION = 'scenario'
+    DIR_ANIMATION = ""
+    
     def __init__(
         self,
         step_func,
@@ -57,6 +66,11 @@ class Scenario:
         axes=None,
         verbose=True,
         t_snapshots=(),
+        write_animation = False,
+        dir_animation_out = None,
+        fname_animation_out = None,
+        tempdir_animation = None,
+        keep_animation_frames = False,
     ):
         self.t = t_0
         self.t_s = t_s
@@ -69,7 +83,12 @@ class Scenario:
 
         self.animate = animate
         self.ax = axes
-
+        self.write_animation = write_animation
+        self.dir_animation_out = dir_animation_out
+        self.fname_animation_out = fname_animation_out
+        self.tempdir_animation = tempdir_animation
+        self.keep_animation_frames = keep_animation_frames
+        
         self.verbose = verbose
 
         self.step_func = step_func
@@ -80,9 +99,12 @@ class Scenario:
 
         t_start = time()
         if self.animate:
-            self.run_animated(t_start, t_end)
+            if self.write_animation:
+                self._run_animated_writeout(t_start, t_end)
+            else:
+                self._run_animated(t_start, t_end)
         else:
-            self.run_silent(t_start, t_end)
+            self._run_silent(t_start, t_end)
 
         t_end = str(timedelta(seconds=time() - t_start))[:-3]
         if self.verbose:
@@ -90,41 +112,67 @@ class Scenario:
         if self.verbose:
             print(f"Simulation finished after {t_end}")
 
-    def run_silent(self, t_start, t_end):
-        i_end = int(t_end / self.t_s)
+    def _run_silent(self, t_start, t_end):
+        self.i_end = int(t_end / self.t_s)
         len_prev_msg = 0
 
-        while self.i < i_end:
+        while self.i < self.i_end:
             t = time()
-            self.step()
-            len_prev_msg = self.wait(t, t_start, i_end, len_prev_msg)
+            self._step()
+            len_prev_msg = self._wait(t, t_start, self.i_end, len_prev_msg)
 
-    def run_animated(self, t_start, t_end):
-        self.init_animation()
+    def _run_animated(self, t_start, t_end):
+        self._init_animation()
 
-        i_end = int(t_end / self.t_s)
+        self.i_end = int(t_end / self.t_s)
         len_prev_msg = 0
 
-        while self.i < i_end:
+        while self.i < self.i_end:
             t = time()
-            self.step_blitting()
-            len_prev_msg = self.wait(t, t_start, i_end, len_prev_msg)
+            self._step_blitting()
+            len_prev_msg = self._wait(t, t_start, self.i_end, len_prev_msg)
+            
+    def _run_animated_writeout(self, t_start, t_end):
+        self._init_animation()
 
-    def step_blitting(self):
+        self.i_end = int(t_end / self.t_s)
+        len_prev_msg = 0
+        n_zero_pad = int(np.ceil(np.log(self.i_end) / np.log(10)))
+
+        with tempfile.TemporaryDirectory(dir=self.tempdir_animation) as tempdir:
+            
+            if self.keep_animation_frames:
+                out_dir = self.dir_frames_out
+            else:
+                out_dir = tempdir
+                
+            while self.i < self.i_end:
+                t = time()
+                self._step_blitting()
+                len_prev_msg = self._wait(t, t_start, self.i_end, len_prev_msg)
+                
+                fname = os.path.join(out_dir, self.fname_animation_out + '_f' + f'{self.i-1}'.zfill(n_zero_pad)+'.png')
+                
+                if self.i%2:
+                    self.fig.savefig(fname, transparent=True)
+                
+            self._assemble_animation_video(out_dir)
+
+    def _step_blitting(self):
         self.fig.canvas.restore_region(self.fig_bg)
 
-        self.step()
+        self._step()
 
         self.fig.canvas.blit(self.fig.bbox)
         self.fig.canvas.flush_events()
 
-    def step(self):
+    def _step(self):
         self.step_func()
 
         self.i += 1
         self.t += self.t_s
 
-    def wait(self, t, t_start, i_end, len_prev_msg):
+    def _wait(self, t, t_start, i_end, len_prev_msg):
         if self.verbose:
             print("\r", end="")
 
@@ -145,12 +193,42 @@ class Scenario:
             sleep(t_sleep)
 
         return len(msg)
+        
+    
+    def _assemble_animation_video(self, tempdir):
+        
+        #prepare
+        n_zero_pad = int(np.ceil(np.log(self.i_end) / np.log(10)))
+        
+        image_files = [fname for fname in os.listdir(tempdir) if fname.endswith(".png")]
+        
+        #create video writer object
+        height, width, layers = cv2.imread(os.path.join(tempdir, image_files[0])).shape
+        vid = cv2.VideoWriter(os.path.join(self.dir_animation_out, self.fname_animation_out+'.mp4'),
+                              cv2.VideoWriter_fourcc(*'mp4v'), 1/self.t_s, (width, height))
+        
+        #load individual frames and append to video
+        for i in range(1, self.i_end):
+            if i%2:
+                fname_i = self.fname_animation_out + '_f' + f'{i-1}'.zfill(n_zero_pad)+'.png'
+                
+                if fname_i not in image_files:
+                    msg = f'Did not find expected frame {i} in temporary directory {tempdir}.'
+                    raise IOError(msg)
+                    
+                frame = cv2.imread(os.path.join(tempdir, fname_i))
+                vid.write(frame)
+
+        vid.release()
+        cv2.destroyAllWindows()       
+        
 
     def reset(self):
         self.i = 0
         self.t = self.t_0
+        
 
-    def init_animation(self):
+    def _init_animation(self):
         """Initialize the animation of the scenario.
 
         Uses blitting for faster animation.
@@ -168,6 +246,20 @@ class Scenario:
         plt.pause(0.1)
         self.fig_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
         self.fig.canvas.blit(self.fig.bbox)
+        
+        if self.write_animation:
+            
+            assert (1/self.t_s) % 1 == 0.0, 'Simulation time t_s has to result in even fps number!'
+            
+            default_name = strftime('%y%m%d%H%M%S')+'_'+self.FNAME_ANIMATION
+            self.fname_animation_out = none_switch(self.fname_animation_out, default_name)
+            self.dir_animation_out = none_switch(self.dir_animation_out, self.DIR_ANIMATION)
+            
+            if self.keep_animation_frames:
+                self.dir_frames_out = os.path.join(self.dir_animation_out, self.fname_animation_out)
+                os.makedirs(self.dir_frames_out, exist_ok=True)
+            else:
+                self.dir_frames_out = None
 
 
 class SUMOScenario:
@@ -339,7 +431,7 @@ class SUMOScenario:
                     )
                 ins.add_road_user(unew)
 
-    def step(self, i):
+    def _step(self, i):
         """Simulate a C-SFM step for all intersections in the scenario"""
 
         t = time()
@@ -352,7 +444,7 @@ class SUMOScenario:
         if self.animate:
             self.fig.canvas.restore_region(self.fig_bg)
         for ins in self.intersections:
-            ins.step()
+            ins._step()
         if self.animate:
             self.fig.canvas.blit(self.fig.bbox)
             self.fig.canvas.flush_events()
@@ -378,7 +470,7 @@ class SUMOScenario:
             while traci.simulation.getMinExpectedNumber() > 0:
                 if i == n_steps:
                     break
-                self.step(i)
+                self._step(i)
                 i = i + 1
         except Exception:
             print(traceback.format_exc())

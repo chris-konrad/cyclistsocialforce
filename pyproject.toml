@@ -21,6 +21,7 @@ dependencies = [
 	"control",
 	"pyqt5",
 	"libsumo",
+	"opencv-python"
 ]
 	
 [tool.setuptools.packages.find]

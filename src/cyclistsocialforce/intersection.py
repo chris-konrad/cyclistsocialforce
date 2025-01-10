@@ -292,6 +292,7 @@ class SocialForceIntersection:
 
         """
         self.bicycle_drawing_kwargs = bicycle_drawing_kwargs
+        self.is_first_step = True
         
         self.activate_sumo_cosimulation = activate_sumo_cosimulation
         self.vehicles = vehicleList
@@ -394,9 +395,9 @@ class SocialForceIntersection:
             self.ghandles = []
 
             # Add drawing to any vehicle that didn't have one already
-            for v in self.vehicles:
-                if v.drawing is None:
-                    v.add_drawing(self.ax, **self.drawing_kwargs)
+            # for v in self.vehicles:
+            #    if v.drawing is None:
+            #        v.add_drawing(self.ax, **self.bicycle_drawing_kwargs)
 
             # Draw road elements
             for e in self.road_elements:
@@ -859,6 +860,15 @@ class SocialForceIntersection:
         None.
 
         """
+        
+        #only in the first step, add drawings of road users.
+        if self.is_first_step:
+            self.is_first_step = False
+            for v in self.vehicles:
+                if v.drawing is None:
+                    v.add_drawing(self.ax, **self.bicycle_drawing_kwargs)
+                    
+                    
         if self.n_bikes > 0:
             Fx, Fy = self.calc_forces()
 
