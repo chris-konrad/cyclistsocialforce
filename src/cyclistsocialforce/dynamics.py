@@ -155,8 +155,24 @@ class WhippleCarvalloDynamics(Dynamics):
     def __init__(self, bicycle):
 
         self.bp_model = bicycle.params.bp_model
-        self.poles = bicycle.params.poles
-
+        
+        # init dynamics either from poles or from gains provided in the params
+        # object
+        try:
+            self.from_gains = not(bicycle.params.gains is None)
+        except AttributeError:
+            self.from_gains = False    
+            assert not(bicycle.params.poles is None), (f"The parameters object"
+                             f" has to have either a poles or a gains"
+                             f"  property!")
+            
+        if self.from_gains:
+            self.desired_gains = bicycle.params.gains
+            self.desired_poles = None
+        else:
+            self.desired_gains = None
+            self.desired_poles = bicycle.params.poles
+            
         # get transition and input matrices from Jason Moore's toolbox
         # self.bpbike = bp.Bicycle(self.BIKE, pathToData=self.PATH)
 
@@ -190,6 +206,11 @@ class WhippleCarvalloDynamics(Dynamics):
         self.p_dist_steer = bicycle.params.p_dist_steer
         self.T_dist_roll = bicycle.params.T_dist_roll
         self.T_dist_steer = bicycle.params.T_dist_steer
+        
+        # names
+        self.state_names = ['phi', 'delta', 'phidot', 'deltadot', 'psi']
+        self.input_names = ['T_phi', 'T_delta']
+        self.param_names = ['k_'+s for s in self.state_names]
 
     def get_statespace_matrices(self, v):
         Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
@@ -213,10 +234,15 @@ class WhippleCarvalloDynamics(Dynamics):
     def update(self, v):
         A, B, C, D = self.get_statespace_matrices(v)
 
-        # pole placement
-        self.sys, self.gains = from_pole_placement(
-            A, B[:, 1][:, np.newaxis], C, D[:, 1][:, np.newaxis], self.poles
-        )
+        # recreate system
+        if self.from_gains:
+            self.sys, self.gains = from_gains(
+                A, B[:, 1][:, np.newaxis], C, D[:, 1][:, np.newaxis], 
+                self.desired_gains)
+        else:  
+            self.sys, self.gains = from_pole_placement(
+                A, B[:, 1][:, np.newaxis], C, D[:, 1][:, np.newaxis],
+                self.desired_poles)
 
         # disturbance inputs
         self.add_disturbance_inputs(B)
@@ -442,6 +468,8 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
 
 
 class ParticleDynamicsXY(Dynamics):
+    """ A class for modelling the dynamics of a bicycle as a mass-less particle in 
+    planar space"""
 
     def __init__(self, Vehicle):
 
@@ -484,11 +512,119 @@ class ParticleDynamicsXY(Dynamics):
         Vehicle.s[0:2] = results.states[0:2, 1]
         Vehicle.s[2] = psi_i
         Vehicle.s[3] = np.sqrt(np.sum(results.states[2:4, 1] ** 2))
+        
+class ParticleDynamicsHelbingMolnar(ParticleDynamicsXY):
+    """ A class for modelling the dynamics of a bicycle as a mass-less particle in 
+    planar space with simple heading + speed tracking as done in Helbing & Molnar's (1995) original 
+    social force model.
+    
+    Literature
+    ----------
+    Helbing, D., & Molnár, P. (1995). Social force model for pedestrian dynamics. Physical Review E,
+    51(5), 4282–4286. https://doi.org/10.1103/PhysRevE.51.4282
+    """
+    
+    def __init__(self, Vehicle):
+        
+        tau = 0.1
+        self.gains = [1/tau]
+        
+        # init state space system
+        A = np.array([[0, 0, 1, 0], [0, 0, 0, 1], [0, 0, -1/tau, 0], [0, 0, 0, -1/tau]])
+        B = np.array(([[0, 0], [0, 0], [1/tau, 0], [0, 1/tau]]))
+        C = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
+        D = np.zeros((C.shape[0], B.shape[1]))
+    
+        self.sys = ct.StateSpace(A, B, C, D)
+        
+        # save initial state x = [px, py, vx, vy]
+        self.x = np.zeros(4)
+        self.x[0:2] = Vehicle.s[0:2]
+        self.x[2] = Vehicle.s[3] * np.cos(Vehicle.s[2])
+        self.x[3] = Vehicle.s[3] * np.sin(Vehicle.s[2])
+        
+        
+def test_stability(sys):
+    """
+    Test if a dynamic system is stable.
 
+    Parameters
+    ----------
+    sys : control.StateSpace
+        The state-space system describing the dynamics.
+
+    Returns
+    -------
+    stable : bool
+        True of stable, False if not stable
+    poles : pole locations of the system. 
+    """
+    
+    poles = sys.poles()
+    
+    stable = np.all(np.real(poles) < 0)
+
+    return stable, poles 
+
+def from_gains(A, B, C, D, K_x, K_u=None):
+    """
+    Create a statespace dynamics object from the list of gains.
+    
+    Builds a full-state feedback control system.
+
+    Parameters
+    ----------
+    A : array-like
+        System matrix.
+    B : array-like
+        Input matrix.
+    C : array-like
+        Output matrix. C has to be shaped (1, n_states) and may have only
+        one elements set to 1. All other have to be 0. (MISO-system). Set the
+        state that should follow the reference input to one.
+    D : array-like
+        Feedthrough matrix.
+    poles : array-like
+        Desired poles of the system.
+    t_end : float, optional
+        Simulation time for determining the input gain matrix.
+        The default is 10.0.
+    t_s : TYPE, optional
+        Simulation step time for determining the input gain matrix.
+        The default is 0.01.
+
+    Returns
+    -------
+    state_space : control.StateSpace
+        Statespace object.
+
+    gains : list
+        List of the computed gains that result in poles at the desired
+        location. Given as (K_x, K_u).
+
+    """
+    
+    assert (
+        np.linalg.matrix_rank(ct.ctrb(A, B)) == A.shape[0]
+    ), "System not controllable!"
+    
+    if K_u is None: 
+        K_u = np.identity(B.shape[1]) * K_x[0,-1]
+
+    assert (K_x.shape[0] == B.shape[1]) and (K_x.shape[1] == A.shape[1]), \
+        (f"K_x has to be shaped ({B.shape[1]}, {A.shape[1]}), instead it was " 
+         f"{K_x.shape}")
+    assert (K_u.shape[0] == B.shape[1]) and (K_u.shape[1] == B.shape[1]), \
+        (f"K_u has to be shaped ({B.shape[1]}, {B.shape[1]}), instead it was " 
+         f"{K_u.shape}")
+    
+    return ct.StateSpace(A - B @ K_x, B @ K_u, C, D), (K_x, K_u)
 
 def from_pole_placement(A, B, C, D, poles, t_end=10.0, t_s=0.01):
     """
     Create a statespace dynamics object uing pole placement.
+    
+    Builds a full-state feedback control system.
 
     Parameters
     ----------
