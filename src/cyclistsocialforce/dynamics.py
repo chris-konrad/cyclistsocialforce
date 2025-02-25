@@ -544,7 +544,7 @@ class ParticleDynamicsHelbingMolnar(ParticleDynamicsXY):
         self.x[3] = Vehicle.s[3] * np.sin(Vehicle.s[2])
         
         
-def test_stability(sys):
+def test_stability(sys, stability_type = "asymptotical"):
     """
     Test if a dynamic system is stable.
 
@@ -552,6 +552,9 @@ def test_stability(sys):
     ----------
     sys : control.StateSpace
         The state-space system describing the dynamics.
+    stability_type : str, optional
+        The stability type to test for. Can be either 'asymptotical' or 'marginal'. Default is 
+        asymptotical.
 
     Returns
     -------
@@ -562,7 +565,13 @@ def test_stability(sys):
     
     poles = sys.poles()
     
-    stable = np.all(np.real(poles) < 0)
+    if stability_type == 'asymptotical':
+        stable = np.all(np.real(poles) < 0)
+    elif stability_type == 'marginal':
+        stable = np.all(np.real(poles) <= 0.0)
+    else:
+        msg = (f"Unknown stability type {stability_type}! Allowed types are: "
+               f"['asymptotical','marginal'].")
 
     return stable, poles 
 
