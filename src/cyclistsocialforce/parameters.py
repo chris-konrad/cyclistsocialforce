@@ -1195,10 +1195,6 @@ class ParticleBicycleParameters(BicycleParameters):
             msg = "ParticleBicycleParameters must have four poles! Instead" \
                   f"you provided {len(poles)}: poles = {poles}"
             ValueError(msg)
-        if np.where(poles == self.FIXED_POLES)[0].size != 2:
-            msg = "ParticleBicycleParameters must have a double pole at " \
-                  f"{self.FIXED_POLES}. Instead the given poles where: " \
-                  f"poles = {poles}"
         self._poles = poles
         
 class PlanarBicycleParameters(BicycleParameters):
