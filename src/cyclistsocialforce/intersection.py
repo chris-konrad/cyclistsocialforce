@@ -51,6 +51,23 @@ class RoadSegmentCollection:
     def draw_element(self, ax):
         for seg in self.segs:
             seg.draw_element(ax)
+            
+    def get_destinations_from_segments(self):
+        x = [seg.x1[0] for seg in self.segs]
+        y = [seg.x1[1] for seg in self.segs]
+        return x, y
+            
+    def __getitem__(self, i):
+        
+        if not isinstance(i, int):
+            raise ValueError('Subscription index must be integer!')
+            
+        if i > len(self.segs):
+            raise IndexError((f'RoadSegmentCollection has {len(self.segs)}'
+                              f'segments. The maximum index is '
+                              f'{len(self.segs)-1}, but i={i} was requested'))
+            
+        return self.segs[i]
 
 
 class RoadSegment:

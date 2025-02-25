@@ -329,7 +329,7 @@ class Vehicle:
             self.trajF[1, self.i] = F2
 
         # drawing
-        self.update_drawing()
+        self.update_drawing(Fres=(F1, F2))
 
     def set_uncontrolled(self, traj=()):
         """
@@ -2165,9 +2165,8 @@ class InvPendulumBicycle(TwoDBicycle):
                 # print(f"{self.id} is walking.")
 
         # Drawing
-        self.update_drawing()
+        self.update_drawing(Fres=(Fx, Fy))
 
-        # counter and trajectories.
         self.i += 1
         self.i = self.i % self.traj.shape[1]
 

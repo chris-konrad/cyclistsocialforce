@@ -239,8 +239,11 @@ class Scenario:
         None
 
         """
-        plt.sca(self.ax)
-        self.fig = self.ax.figure
+        if self.ax is None:
+            self.fig, self.ax = plt.subplots(1,1)
+        else:
+            plt.sca(self.ax)
+            self.fig = self.ax.figure
         self.ax.set_aspect("equal")
         plt.show(block=False)
         plt.pause(0.1)
