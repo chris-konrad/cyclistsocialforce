@@ -21,7 +21,9 @@ dependencies = [
 	"control",
 	"pyqt5",
 	"libsumo",
-	"opencv-python"
+	"opencv-python",
+	"bicycleparameters",
+	"datetime",
 ]
 	
 [tool.setuptools.packages.find]

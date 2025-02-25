@@ -34,7 +34,14 @@ The package is research code under development. It may contain bugs and sections
    ```
    cd ./cyclistsocialforce
    pip install . 
+   
    ```
+
+4. A few custom dependencies are not available as pypi packages and have to be installed manually. Follow the instructions from their github pages for installation.
+   
+   - [`pypaperutils`](https://github.com/chris-konrad/pypaperutils) for colours of the TU Delft color scheme
+   
+   - 
 
 ## Demos
 
