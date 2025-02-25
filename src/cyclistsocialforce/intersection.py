@@ -507,7 +507,7 @@ class SocialForceIntersection:
         if self.animate:
             if user.drawing is None:
                 user.add_drawing(self.ax)
-            user.drawing.set_animated = True
+            user.drawing.set_animated(True)
 
         # add road user to intersection
         print(f"Adding {user.id} to intersection {self.id}")
