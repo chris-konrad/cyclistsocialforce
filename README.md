@@ -17,7 +17,7 @@ We provide three different bicycle models:
 
 ### Disclaimer
 
-The package is research code under development. It may contain bugs and sections of unused or insensible code as well as undocumented features. Major changes to this package are planned for the time to come. A proper API documentation is still missing. Refer to the demos for examples how to use this model.
+The package is research code under development. This is the development branch. It may contain bugs and sections of unused or insensible code as well as undocumented features. Major changes to this package are planned for the time to come. A proper API documentation is still missing. Refer to the demos for examples how to use this model.
 
 ## Installation
 
@@ -77,7 +77,7 @@ python demoCSFxSUMO-large.py
 
 ## Authors
 
-- Christoph M. Schmidt, c.m.schmidt@tudelft.nl
+- Christoph M. Konrad, c.m.schmidt@tudelft.nl
 
 License
 --------------------
