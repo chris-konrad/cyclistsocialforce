@@ -148,9 +148,20 @@ class PlanarTwoWheelerDynamics(Dynamics):
 
 
 class WhippleCarvalloDynamics(Dynamics):
-
-    PATH = "U:\PhDConnectedVRU\Projects\external\BicycleParameters\data"
-    BIKE = "Benchmark"
+    """ Implementing the dynamics of a Bicycle using the linearized
+    Whipple-Carvallo model (Meijaard et al., 2027) and Jason Moore's bicycle
+    parameters toolbox (https://bicycleparameters.readthedocs.io/en/latest/)
+    together with full-state feedback control. 
+    
+    Literature
+    ----------
+    
+    Meijaard, J. p, Papadopoulos, J. M., Ruina, A., & Schwab, A. l. (2007). 
+        Linearized dynamics equations for the balance and steer of a bicycle: 
+        A benchmark and review. Proceedings of the Royal Society A: 
+        Mathematical, Physical and Engineering Sciences, 463(2084), 1955–1982. 
+        https://doi.org/10.1098/rspa.2007.1857
+    """
 
     def __init__(self, bicycle):
 
@@ -173,9 +184,6 @@ class WhippleCarvalloDynamics(Dynamics):
             self.desired_gains = None
             self.desired_poles = bicycle.params.poles
             
-        # get transition and input matrices from Jason Moore's toolbox
-        # self.bpbike = bp.Bicycle(self.BIKE, pathToData=self.PATH)
-
         # get geometry parameters
         w = self.bp_model.parameter_set.parameters["w"]
         c = self.bp_model.parameter_set.parameters["c"]
@@ -394,6 +402,26 @@ class WhippleCarvalloDynamics(Dynamics):
 
 
 class HessBikeRiderDynamics(WhippleCarvalloDynamics):
+    """ Implementing the dynamics of a Bicycle using the linearized
+    Whipple-Carvallo model (Meijaard et al., 2027) and Jason Moore's bicycle
+    parameters toolbox (https://bicycleparameters.readthedocs.io/en/latest/)
+    together with the human control model proposed by Hess et al. (2012).
+    
+    Literature
+    ----------
+    
+    Hess, R., Moore, J. K., & Hubbard, M. (2012). Modeling the Manually 
+        Controlled Bicycle. IEEE Transactions on Systems, Man, and 
+        Cybernetics - Part A: Systems and Humans, 42(3), 545–557. IEEE 
+        Transactions on Systems, Man, and Cybernetics - Part A: Systems and 
+        Humans. https://doi.org/10.1109/TSMCA.2011.2164244
+
+    Meijaard, J. p, Papadopoulos, J. M., Ruina, A., & Schwab, A. l. (2007). 
+        Linearized dynamics equations for the balance and steer of a bicycle: 
+        A benchmark and review. Proceedings of the Royal Society A: 
+        Mathematical, Physical and Engineering Sciences, 463(2084), 1955–1982. 
+        https://doi.org/10.1098/rspa.2007.1857
+    """
 
     def __init__(self, Bicycle):
         WhippleCarvalloDynamics.__init__(self, Bicycle)
@@ -468,8 +496,8 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
 
 
 class ParticleDynamicsXY(Dynamics):
-    """ A class for modelling the dynamics of a bicycle as a mass-less particle in 
-    planar space"""
+    """ A class for modelling the dynamics of a bicycle as a mass-less 
+    particle in planar space"""
 
     def __init__(self, Vehicle):
 
@@ -514,14 +542,15 @@ class ParticleDynamicsXY(Dynamics):
         Vehicle.s[3] = np.sqrt(np.sum(results.states[2:4, 1] ** 2))
         
 class ParticleDynamicsHelbingMolnar(ParticleDynamicsXY):
-    """ A class for modelling the dynamics of a bicycle as a mass-less particle in 
-    planar space with simple heading + speed tracking as done in Helbing & Molnar's (1995) original 
-    social force model.
+    """ A class for modelling the dynamics of a bicycle as a mass-less particle 
+    in planar space with simple heading + speed tracking as done in Helbing & 
+    Molnar's (1995) original social force model.
     
     Literature
     ----------
-    Helbing, D., & Molnár, P. (1995). Social force model for pedestrian dynamics. Physical Review E,
-    51(5), 4282–4286. https://doi.org/10.1103/PhysRevE.51.4282
+    Helbing, D., & Molnár, P. (1995). Social force model for pedestrian 
+        dynamics. Physical Review E, 51(5), 4282–4286. 
+        https://doi.org/10.1103/PhysRevE.51.4282
     """
     
     def __init__(self, Vehicle):
@@ -553,8 +582,8 @@ def test_stability(sys, stability_type = "asymptotical"):
     sys : control.StateSpace
         The state-space system describing the dynamics.
     stability_type : str, optional
-        The stability type to test for. Can be either 'asymptotical' or 'marginal'. Default is 
-        asymptotical.
+        The stability type to test for. Can be either 'asymptotical' or 
+        'marginal'. Default is asymptotical.
 
     Returns
     -------
