@@ -2,7 +2,7 @@
 """
 Created on Mon Mar 11 09:36:53 2024
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 import control as ct
 import matplotlib.pyplot as plt

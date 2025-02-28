@@ -2,7 +2,7 @@
 """
 Created on Thu Apr 20 10:19:21 2023.
 
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 
 import sys

@@ -4,7 +4,7 @@ Created on Tue Sep 26 12:16:53 2023.
 
 Classes managing the parameter sets of the model and the visualisation.
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 import numpy as np

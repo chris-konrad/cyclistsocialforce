@@ -3,13 +3,7 @@ Created on Wed Apr 19 16:49:26 2023
 
 Classes defining different vehicle types for the social force model.
 
-Hierarchy:
-    Vehicle
-     └── Bicycle
-         ├── 2DBicycle
-         └── InvPendulumBicycle
-
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 
 import numpy as np

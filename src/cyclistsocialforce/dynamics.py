@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 24 11:55:09 2024
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 import numpy as np

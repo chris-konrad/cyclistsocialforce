@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 19 16:49:49 2023.
 
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 
 import matplotlib.pyplot as plt
@@ -295,7 +295,7 @@ class DiffEquation:
 
     y(k) = (1/a0)*(b0*u(k)+b1*u(k-1)+...+bn*u(k-n)-a1*y(k-1)-...-am*y(k-m))
 
-    Created by Christoph Schmidt
+    Created by Christoph Konrad
     """
 
     def __init__(self, ab, y=None, u=None, th=None):

@@ -12,7 +12,7 @@ Provides functionalities to calibrate different parts of the cyclist model:
         a reference input using gradient-less downhill simplex optimisation.
         Slow but does not require to define the gradient of a simulation step.
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 from scipy.optimize import fmin

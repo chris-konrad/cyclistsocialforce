@@ -8,7 +8,7 @@ cyclistsocialforce framework.
 Implemented models:
     - KATHS Cyclist Model
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 import numpy as np
@@ -26,7 +26,7 @@ from cyclistsocialforce.parameters import BicycleParameters, CarParameters
 
 Particle-based cyclist model by Kaths (2023)
 
-Implementation by Christoph M. Schmidt based solely on information from the
+Implementation by Christoph M. Konrad based solely on information from the
 associated publication. The implementation was not verified by the original
 author of the model. 
 

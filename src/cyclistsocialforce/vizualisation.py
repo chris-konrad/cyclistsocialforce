@@ -4,7 +4,7 @@ Created on Thu Oct 12 13:08:17 2023.
 
 Classes and functions for the vizualisation of the simulation.
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 import numpy as np
