@@ -17,12 +17,8 @@ from cyclistsocialforce.utils import (
     limitAngle,
     cart2polar,
     thresh,
-    angleDifference,
-    to_deg,
-    DiffEquation,
-    Angle,
+    angleDifference
 )
-from cyclistsocialforce.vehiclecontrol import PIDcontroller
 from cyclistsocialforce.parameters import (
     CarParameters,
     VehicleParameters,
@@ -43,6 +39,7 @@ from cyclistsocialforce.dynamics import (
     WhippleCarvalloDynamics,
     HessBikeRiderDynamics,
     PlanarTwoWheelerDynamics,
+    PIDcontroller
 )
 
 

@@ -15,7 +15,6 @@ import numpy as np
 from cyclistsocialforce.vehicle import Vehicle
 from cyclistsocialforce.utils import limitAngle
 from cyclistsocialforce.vizualisation import (
-    VehicleDrawing,
     CarDrawing2D,
     BicycleDrawing2D,
 )

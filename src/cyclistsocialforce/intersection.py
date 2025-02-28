@@ -9,7 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.path as pth
 from matplotlib.patches import PathPatch, Polygon
-from matplotlib.lines import Line2D
 from scipy import interpolate
 
 import cyclistsocialforce.config as cfg
