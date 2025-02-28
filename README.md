@@ -9,11 +9,11 @@ The model is developed for our contribution to the [2023 Bicycle and Motorcycle 
 
 We provide three different bicycle models:
 
-- `vehicle.Bicycle`: Simple two-wheeler kinematics without wheel slip. (Model from [v0.1.x](https://github.com/chrismo-schmidt/cyclistsocialforce/releases/tag/v0.1.1-bmd2023extendedabstract))
+- `vehicle.Bicycle`: Simple two-wheeler kinematics without wheel slip. (Model from [v0.1.x](https://github.com/chrismo-konrad/cyclistsocialforce/releases/tag/v0.1.1-bmd2023extendedabstract))
 
-- `vehicle.InvertedPendulumBicycle`: Two-Wheeler kinematics with an inverted pendulum on top to simulate bicycle roll. A nested control loop ensures that the bicycle stays upright while following the desired yaw angle given by the social force. Additionally, the model includes new repulsive force field shapes and path planning based destination forces. Introduced with [v.1.1.0](https://github.com/chrismo-schmidt/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
+- `vehicle.InvertedPendulumBicycle`: Two-Wheeler kinematics with an inverted pendulum on top to simulate bicycle roll. A nested control loop ensures that the bicycle stays upright while following the desired yaw angle given by the social force. Additionally, the model includes new repulsive force field shapes and path planning based destination forces. Introduced with [v.1.1.0](https://github.com/chrismo-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
-- `vehicle.TwoDBicycle`: Same two-wheeler kinematics as Bicycle, but with the modified repulsive force fields and path planning of InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chrismo-schmidt/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
+- `vehicle.TwoDBicycle`: Same two-wheeler kinematics as Bicycle, but with the modified repulsive force fields and path planning of InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chrismo-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
 ### Disclaimer
 
@@ -26,7 +26,7 @@ The package is research code under development. It may contain bugs and sections
 2. Clone this repository. 
    
    ```
-   git clone  https://github.com/chrismo-schmidt/cyclistsocialforce.git
+   git clone  https://github.com/chrismo-konrad/cyclistsocialforce.git
    ```
 
 3. Install the package and it's dependencies. Refer to `pyproject.toml` for an overview of the dependencies. 
@@ -68,18 +68,18 @@ python demoCSFxSUMO-large.py
 
 ## Authors
 
-- Christoph M. Schmidt, c.m.schmidt@tudelft.nl
+- Christoph M. Konrad (formely Schmidt), c.m.schmidt@tudelft.nl
 
 License
 --------------------
 
-This package is licensed under the terms of the [MIT license](https://github.com/chrismo-schmidt/cyclistsocialforce/blob/main/LICENSE).
+This package is licensed under the terms of the [MIT license](https://github.com/chrismo-konrad/cyclistsocialforce/blob/main/LICENSE).
 
 ## Citation
 
 If you use this model in your research, please cite it in your publications as:
 
-Schmidt, C., Dabiri, A., Schulte, F., Happee, R. & Moore, J. (2023). Essential Bicycle Dynamics for Microscopic Traffic Simulation: An Example Using the Social Force Model [Preprint]. The Evolving Scholar - BMD 2023, 5th Edition. https://doi.org/10.59490/65037d08763775ba4854da53
+Schmidt, C., Dabiri, A., Schulte, F., Happee, R. & Moore, J. (2024). Essential Bicycle Dynamics for Microscopic Traffic Simulation: An Example Using the Social Force Model  [version 2; peer reviewed]. The Evolving Scholar - BMD 2023, 5th Edition. https://doi.org/10.59490/65a5124da90ad4aecf0ab147
 
 ## Bibliography
 
