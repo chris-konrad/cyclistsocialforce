@@ -46,7 +46,7 @@ The package is research code under development. This is the development branch. 
    
    - [`pypaperutils`](https://github.com/chris-konrad/pypaperutils) for colours of the TU Delft color scheme
    
-   - `mypyutils` for some convenience functions
+   - [`mypyutils`](https://github.com/chris-konrad/mypyutils) for some convenience functions
 
 ## Demos
 
@@ -110,8 +110,6 @@ Hess, R., Moore, J. K., & Hubbard, M. (2012). Modeling the Manually Controlled B
 Meijaard, J. p, Papadopoulos, J. M., Ruina, A., & Schwab, A. l. (2007). Linearized dynamics equations for the balance and steer of a bicycle: A benchmark and review. *Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences*, *463*(2084), 1955–1982. [Linearized dynamics equations for the balance and steer of a bicycle: a benchmark and review | Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences](https://doi.org/10.1098/rspa.2007.1857)
 
 Twaddle, H. (2017). *Development of tactical and operational behaviour models for bicyclists based on automated video data analysis* [PhD Thesis]. Technische Universität München. https://mediatum.ub.tum.de/?id=1366878
-
-
 
 ## Project Organization
 
