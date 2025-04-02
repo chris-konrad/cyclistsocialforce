@@ -243,10 +243,38 @@ class WhippleCarvalloDynamics(Dynamics):
         self.T_dist_roll = bicycle.params.T_dist_roll
         self.T_dist_steer = bicycle.params.T_dist_steer
         
+        #init rear wheel position
+        self.l_rw = 0.5
+        dx_rw, dy_rw = self._transform_rwpos2center([0,0], bicycle.s[2])
+        self.p_rw = np.array([bicycle.s[0] - dx_rw, bicycle.s[1] - dy_rw])
+        
         # names
         self.state_names = ['phi', 'delta', 'phidot', 'deltadot', 'psi']
         self.input_names = ['T_phi', 'T_delta']
         self.param_names = ['k_'+s for s in self.state_names]
+        
+        
+    def _transform_rwpos2center(self, p_rw, psi):
+        '''Transform the position of the rear wheel to the position of the
+        bicycle center.
+        
+        The Whipplecarvallo-Model tracks the position of the rear wheel contact
+        patch to the ground. This function transforms this point to the center
+        of the bicycle. 
+
+        Parameters
+        ----------
+        p_rw : TYPE
+            DESCRIPTION.
+        psi : TYPE
+            DESCRIPTION.
+        '''
+        
+        x = self.l_rw * p_rw[0] * np.cos(psi) 
+        y = self.l_rw * p_rw[1] * np.sin(psi)
+        
+        return x, y  
+        
 
     def get_statespace_matrices(self, v):
         Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
@@ -284,6 +312,8 @@ class WhippleCarvalloDynamics(Dynamics):
         self.add_disturbance_inputs(B)
 
     def step(self, bicycle, Fx, Fy):
+        
+        self.s_next = bicycle.s
 
         n_turns = int(self.psi_boundless / (2 * np.pi))
 
@@ -337,14 +367,18 @@ class WhippleCarvalloDynamics(Dynamics):
         self.x = results.states[:, 1]  # (roll, steer, droll, dsteer, yaw)
 
         self.psi_boundless = results.states[4, 1]
-        bicycle.s[2] = limitAngle(results.states[4, 1])  # yaw
-        bicycle.s[4] = limitAngle(results.states[1, 1])  # steer
-        bicycle.s[5] = limitAngle(results.states[0, 1])  # roll
+        self.s_next[2] = limitAngle(results.states[4, 1])  # yaw
+        self.s_next[4] = limitAngle(results.states[1, 1])  # steer
+        self.s_next[5] = -limitAngle(results.states[0, 1])  # roll
 
         if bicycle.saveForces:
             bicycle.trajF[0, bicycle.i] = psi_d
 
         self.step_pos(bicycle, Fx, Fy)
+        self.s_next[0] = self.p_rw[0]
+        self.s_next[1] = self.p_rw[1]
+
+        bicycle.s = self.s_next
 
     def speed_control(self, v, vd):
         """Calculate the acceleration as a reaction to the current social
@@ -394,12 +428,10 @@ class WhippleCarvalloDynamics(Dynamics):
         v = bicycle.s[3] + bicycle.params.t_s * a
         v = thresh(v, bicycle.params.v_max_riding)
         # print(v)
-        y = bicycle.s[1] + bicycle.params.t_s * v * np.sin(bicycle.s[2])
-        x = bicycle.s[0] + bicycle.params.t_s * v * np.cos(bicycle.s[2])
+        self.p_rw[1] = self.p_rw[1] + bicycle.params.t_s * bicycle.s[3] * np.sin(bicycle.s[2])
+        self.p_rw[0] = self.p_rw[0] + bicycle.params.t_s * bicycle.s[3] * np.cos(bicycle.s[2])
 
-        bicycle.s[0] = x
-        bicycle.s[1] = y
-        bicycle.s[3] = v
+        self.s_next[3] = v
 
     def add_disturbance_inputs(self, Bb):
         """
