@@ -6,7 +6,10 @@ Created on Wed Apr 24 11:55:09 2024
 """
 
 import numpy as np
+import sympy as sm
 import control as ct
+
+from scipy.optimize import root
 
 from cyclistsocialforce.utils import (
     limitAngle,
@@ -180,6 +183,9 @@ class WhippleCarvalloDynamics(Dynamics):
     Whipple-Carvallo model (Meijaard et al., 2027) and Jason Moore's bicycle
     parameters toolbox (https://bicycleparameters.readthedocs.io/en/latest/)
     together with full-state feedback control. 
+
+    The dynamics are integrated using the midpoint method. Scipy.optimize.root
+    solves the non-linear equations of motion at each step.
     
     Literature
     ----------
@@ -194,23 +200,7 @@ class WhippleCarvalloDynamics(Dynamics):
     def __init__(self, bicycle):
 
         self.bp_model = bicycle.params.bp_model
-        
-        # init dynamics either from poles or from gains provided in the params
-        # object
-        try:
-            self.from_gains = not(bicycle.params.gains is None)
-        except AttributeError:
-            self.from_gains = False    
-            assert not(bicycle.params.poles is None), (f"The parameters object"
-                             f" has to have either a poles or a gains"
-                             f"  property!")
-            
-        if self.from_gains:
-            self.desired_gains = bicycle.params.gains
-            self.desired_poles = None
-        else:
-            self.desired_gains = None
-            self.desired_poles = bicycle.params.poles
+        self._config_gains_and_poles(bicycle.params)
             
         # get geometry parameters
         w = self.bp_model.parameter_set.parameters["w"]
@@ -221,39 +211,61 @@ class WhippleCarvalloDynamics(Dynamics):
         self.A41_over_v = coslam / w
         self.A43 = coslam * c / w
 
+        # parameters
+        self.t_s = bicycle.params.t_s
+        self.a_max = bicycle.params.a_max
+        self.v_max = bicycle.params.v_max_riding
+
         # initialize state space system
-        self.update(bicycle.s[3])
+        self.v = bicycle.s[3]
+        self.gains = self._get_gains(self.v)
+        self.x = np.array([
+            bicycle.s[5],   #roll phi
+            bicycle.s[4],   #steer delta
+            bicycle.s[7],   #roll rate phidot
+            bicycle.s[6],   #steer rate deltadot
+            bicycle.s[2],   #yaw psidot
+            bicycle.s[0],   #x 
+            bicycle.s[1]    #y
+        ])
 
-        # save initial state x0 = (phi, delta, dphi, ddelta, psi)
-        self.x = np.zeros(5)
-        self.x[4] = bicycle.s[2]
-        self.x[0] = bicycle.s[5]
-        self.x[1] = bicycle.s[4]
+        # initialize lateral dynamics integrators
+        self.eval_lat_residual, self.eval_lat_jacobian = self._get_midpoint_moment_evaluators()
 
-        # speed controller
+        # initialize trivial speed controller
         self.speed_controller = PIDcontroller(
             bicycle.params.k_p_v, 0, 0, bicycle.params.t_s, isangle=False
         )
 
-        self.psi_boundless = bicycle.s[2]
-
         # roll and steer torque disturbance
-        self.p_dist_roll = bicycle.params.p_dist_roll
-        self.p_dist_steer = bicycle.params.p_dist_steer
-        self.T_dist_roll = bicycle.params.T_dist_roll
-        self.T_dist_steer = bicycle.params.T_dist_steer
+        if bicycle.params.p_dist_roll > 0 or bicycle.params.p_dist_steer:
+            raise Warning("Support for steer and roll torque disturbance removed!")
         
-        #init rear wheel position
-        self.l_rw = 0.5
-        dx_rw, dy_rw = self._transform_rwpos2center([0,0], bicycle.s[2])
-        self.p_rw = np.array([bicycle.s[0] - dx_rw, bicycle.s[1] - dy_rw])
+
+    def _config_gains_and_poles(self, params):
+        """ Configure if dynamics are defined by desired gains or desired poles. Desired poles overwrite desired gains.
+        """
         
-        # names
-        self.state_names = ['phi', 'delta', 'phidot', 'deltadot', 'psi']
-        self.input_names = ['T_phi', 'T_delta']
-        self.param_names = ['k_'+s for s in self.state_names]
+        self.from_gains = False
+        self.desired_gains = None
+        self.desired_poles = None
+
+        if hasattr(params, 'gains'):
+            if not params.gains is None:
+                self.from_gains = True
+                self.desired_gains = params.gains
         
-        
+        if hasattr(params, 'poles'):
+            if not params.poles is None:
+                self.from_gains = False
+                self.desired_poles = params.poles
+
+        if (self.desired_gains is None) and (self.desired_poles is None):
+            msg = ("The BicycleParameter object neither defines desired gains nor desired poles! Make sure that"
+                   "'params' has a 'gains' or a 'poles' attribute and that at least one of them is not 'None'.")
+            raise RuntimeError(msg)
+
+
     def _transform_rwpos2center(self, p_rw, psi):
         '''Transform the position of the rear wheel to the position of the
         bicycle center.
@@ -275,6 +287,101 @@ class WhippleCarvalloDynamics(Dynamics):
         
         return x, y  
         
+
+    def _make_eoms_set_whipplecarvallo(self):
+        """
+        Returns dx(t)/dt = f(x(t), u(t)) with
+
+        States and input:
+        x(t) = [phi(t), delta(t), dphi(t)/dt, ddelta(t)/dt, psi(t), p_x(t), p_y(t)]^T
+        u(t) = [p_x_c(t), p_y_c(t)]^T
+
+        Unknown gain parameters:
+        k = [k_phi, k_delta, k_phidot, k_deltadot, k_psi]
+
+        State derivative:
+        dx(t)/dt = [dphi(t)/d, ddelta(t)/d, ddphi(t)/dt^2, dddelta(t)/dt^2, dpsi(t)/dt, dp_x(t)/dt, dp_y(t)/dt]^T
+
+        Returns
+        -------
+        f : sm.Matrix
+            The function f(x(t), u(t)). Shaped [7,1]
+        states : sm.Matrix
+            The state vector shaped [7,1]
+        params : sm.Matrix
+            A vector of the unknown gain parameters in f.
+        inputs : sm.Matrix
+            The input vector u(t) shaped [2,1].
+        v : sm.Function
+            The unknown speed.
+        
+        """
+
+        # input symbols
+        p_x_c, p_y_c, v = sm.symbols("x_c, y_c, v")
+        
+        # state symbols
+        state_names = ["phi", "delta", "phidot", "deltadot", "psi", "p_x", "p_y"]
+        param_names = ["k_phi", "k_delta", "k_phidot", "k_deltadot", "k_psi"]
+
+        # ids of position and orientation states
+        pos_state_ids = np.array([5,6])
+        psi_state_id = 4
+        bikerider_state_ids = np.array([0,1,2,3,4])
+        Kx_param_ids = np.array([0,1,2,3,4])
+        Ku_param_ids = np.array([4])
+
+        inputs = [p_x_c, p_y_c]
+        states = [sm.Symbol(s) for s in state_names]
+        params = [sm.Symbol(p) for p in param_names]
+
+        # bike-rider states
+        x_br = sm.Matrix([[states[j]] for j in bikerider_state_ids])
+    
+        # bike-rider state-space matrices
+        A_br, B_br, _, _ = self.get_symbolic_statespace_matrices()
+        A_br = sm.Matrix(A_br)
+        B_br = sm.Matrix(B_br[:, 1])  # only use steer torque input
+    
+        # gain matrices
+        K_x = sm.Matrix([[params[j]] for j in Kx_param_ids]).T
+        K_u = sm.Matrix([[params[j]] for j in Ku_param_ids])
+        
+        # bike-rider eoms
+        f_br = ((A_br - B_br * K_x) * x_br + B_br * K_u * sm.atan((p_y_c - states[pos_state_ids[1]]) / 
+                                                                (p_x_c - states[pos_state_ids[0]])))
+        
+        # forward motion eoms 
+        f_fw = sm.Matrix(
+            [[v * sm.cos(states[psi_state_id])],   #xdot - v * cos(psi)
+            [v * sm.sin(states[psi_state_id])]])  #ydot - v * sin(psi)
+    
+        # combine bike-rider eoms and forward eoms
+        f = f_br.col_join(f_fw)
+
+        return f, states, params, inputs, v
+
+
+    def _get_midpoint_moment_evaluators(self):
+
+        f, states, params, inputs, v = self._make_eoms_set_whipplecarvallo()
+
+        x = sm.Matrix([sm.Symbol(f"{s.name}_n") for s in states])
+        x_next = sm.Matrix([sm.Symbol(f"{s.name}_(n+1)") for s in states])
+
+        x_repl = dict(zip(states, (x+x_next)/2))
+
+        h = sm.symbols("h")
+
+        # Residual R of the implicit midpoint method and it's jacobian.
+        R = x_next - x - h * f.subs(x_repl)
+        J = R.jacobian(x_next)
+
+        eval_residual = sm.lambdify((params, inputs, x, x_next, v, h), R)
+        eval_jacobian = sm.lambdify((params, inputs, x, x_next, v, h), J)
+
+        return eval_residual, eval_jacobian
+
 
     def get_statespace_matrices(self, v):
         """
@@ -304,116 +411,25 @@ class WhippleCarvalloDynamics(Dynamics):
         D = np.zeros((C.shape[0], B.shape[1]))
 
         return A, B, C, D
+    
 
-    def update(self, v):
-        A, B, C, D = self.get_statespace_matrices(v)
+    def _get_gains(self, v):
+        """ Calculates the gains at a given speed.
+        """
 
-        # recreate system
         if self.from_gains:
-            self.sys, self.gains = from_gains(
-                A, B[:, 1][:, np.newaxis], C, D[:, 1][:, np.newaxis], 
-                self.desired_gains)
-        else:  
-            self.sys, self.gains = from_pole_placement(
+            return self.desired_gains
+        else:
+            A, B, C, D = self.get_statespace_matrices(v)
+            _, gains = from_pole_placement(
                 A, B[:, 1][:, np.newaxis], C, D[:, 1][:, np.newaxis],
                 self.desired_poles)
+            
+            return gains[0]
 
-        # disturbance inputs
-        self.add_disturbance_inputs(B)
 
-    def step(self, bicycle, Fx, Fy):
-        
-        self.s_next = bicycle.s
-
-        n_turns = int(self.psi_boundless / (2 * np.pi))
-
-        # update statespace parameters with current speed
-        self.update(bicycle.s[3])
-
-        # absolute force angle
-        psi_d = np.arctan2(Fy, Fx)
-        psi_d = psi_d + n_turns * 2 * np.pi
-
-        psi_d_temp = np.array(
-            [psi_d - (2 * np.pi), psi_d, psi_d + (2 * np.pi)]
-        )
-        i_temp = np.argmin(np.abs(psi_d_temp - self.psi_boundless))
-        psi_d = psi_d_temp[i_temp]
-
-        # if abs(psi_d - bicycle.s[2]) > np.pi:
-        #    dpsi = angleDifference(psi_d, bicycle.s[2])
-        #    psi_d = bicycle.s[2] + dpsi
-
-        rng = np.random.default_rng()
-        z_phi = (
-            self.T_dist_roll
-            * rng.binomial(1, self.p_dist_roll)
-            * (1 - 2 * rng.binomial(1, 0.5))
-        )
-        z_delta = (
-            self.T_dist_steer
-            * rng.binomial(1, self.p_dist_steer)
-            * (1 - 2 * rng.binomial(1, 0.5))
-        )
-
-        if z_phi != 0.0:
-            print(f"{z_phi:.1f} N roll torque disturbance!")
-
-        if z_delta != 0.0:
-            print(f"{z_delta:.1f} N steer torque disturbance!")
-
-        u = np.array([psi_d, z_phi, z_delta])
-        U = np.c_[u, u]
-
-        # calculate steer angle for stabilization
-        results = ct.forced_response(
-            self.sys,
-            T=np.array([0, bicycle.params.t_s]),
-            X0=self.x,
-            return_x=True,
-            U=U,
-            squeeze=False,
-        )
-        self.x = results.states[:, 1]  # (roll, steer, droll, dsteer, yaw)
-
-        self.psi_boundless = results.states[4, 1]
-        self.s_next[2] = limitAngle(results.states[4, 1])  # yaw
-        self.s_next[4] = limitAngle(results.states[1, 1])  # steer
-        self.s_next[5] = -limitAngle(results.states[0, 1])  # roll
-
-        if bicycle.saveForces:
-            bicycle.trajF[0, bicycle.i] = psi_d
-
-        self.step_pos(bicycle, Fx, Fy)
-        self.s_next[0] = self.p_rw[0]
-        self.s_next[1] = self.p_rw[1]
-
-        bicycle.s = self.s_next
-
-    def speed_control(self, v, vd):
-        """Calculate the acceleration as a reaction to the current social
-        force.
-
-        Parameters
-        ----------
-
-        vd : float
-            Desired speed.
-
-        Returns
-        -------
-        a : float
-            Acceleration
-
-        """
-        dv = vd - v
-        a = self.speed_controller.step(dv)
-
-        return a
-
-    def step_pos(self, bicycle, Fx, Fy):
-        """Propagate the speed dynamics by one time step and integrate
-        to calculate the position.
+    def _step_speed(self, Fx, Fy):
+        """Propagate the speed dynamics by one time step.
 
         Parameters
         ----------
@@ -421,54 +437,59 @@ class WhippleCarvalloDynamics(Dynamics):
             X-component of the current social force.
         Fy : float
             y-component of the current social force.
+        a_max
 
         Returns
         -------
-        s : list of floats
-            Next position and speed of the
-            bicycle given as s = (x, y, v)
+        v : float
+            Updated speed
 
         """
 
+        # desired speed
         vd = np.sqrt(Fx**2 + Fy**2)
 
-        a = self.speed_control(bicycle.s[3], vd)
+        # acceleration
+        a = self.speed_controller.step(vd - self.v)
+        a = thresh(a, self.a_max)
 
-        a = thresh(a, bicycle.params.a_max)
-        v = bicycle.s[3] + bicycle.params.t_s * a
-        v = thresh(v, bicycle.params.v_max_riding)
-        # print(v)
-        self.p_rw[1] = self.p_rw[1] + bicycle.params.t_s * bicycle.s[3] * np.sin(bicycle.s[2])
-        self.p_rw[0] = self.p_rw[0] + bicycle.params.t_s * bicycle.s[3] * np.cos(bicycle.s[2])
+        # integrate speed
+        v = thresh(self.v + self.t_s * a, self.v_max)
 
-        self.s_next[3] = v
+        return v
 
-    def add_disturbance_inputs(self, Bb):
-        """
-        Add roll and/or steer torque disturbance inputs to the statespace
-        system.
 
-        Parameters
-        ----------
-        Bb : array-like
-            Input matrix of the the linear Whipple-Carvallo bicycle model
+    def step(self, bicycle, Fx, Fy):
 
-        """
+        #update speed
+        v = self._step_speed(Fx, Fy)
 
-        # if not (self.add_dist_steer or self.add_dist_roll):
-        #    pass
+        #update gains
+        self.gains = self._get_gains(v)
 
-        BdKu = self.sys.B  # bike yaw error -> steer torqe input
-        B = BdKu
+        #integration of lateral dynamics
+        gains = self.gains.flatten()
+        inputs = bicycle.dest[0:2]
 
-        # if self.add_dist_roll:
-        B = np.c_[B, Bb[:, 0]]  # bike roll torque disturbance input
+        def residual(x_next):
+            return self.eval_lat_residual(gains, inputs, self.x, x_next, v, self.t_s).flatten()
 
-        # if self.add_dist_steer:
-        B = np.c_[B, Bb[:, 1]]  # bike steer torque disturbance input
-        D = np.zeros((self.sys.C.shape[0], B.shape[1]))
+        def jacobian(x_next):
+            return self.eval_lat_jacobian(gains, inputs, self.x, x_next, v, self.t_s)
+        
+        sol = root(residual, self.x, jac=jacobian, method='lm')
 
-        self.sys = ct.StateSpace(self.sys.A, B, self.sys.C, D)
+        # update state
+        self.x = sol.x
+        self.v = v
+
+        # update bicycle state
+        bicycle.s[0] = self.x[5] #x-pos
+        bicycle.s[1] = self.x[6] #y-pos
+        bicycle.s[2] = limitAngle(self.x[4])  # yaw
+        bicycle.s[3] = self.v # speed
+        bicycle.s[4] = limitAngle(self.x[1])  # steer
+        bicycle.s[5] = -limitAngle(self.x[0])  # roll
 
 
 class HessBikeRiderDynamics(WhippleCarvalloDynamics):
