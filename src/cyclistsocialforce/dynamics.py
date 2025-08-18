@@ -277,6 +277,16 @@ class WhippleCarvalloDynamics(Dynamics):
         
 
     def get_statespace_matrices(self, v):
+        """
+        xdot = A*x + B*u
+        
+        with 
+        
+        x = [phi, delta, phidot, deltadot, psi]^T
+        u = [0, Tdelta]
+
+        """
+        
         Awc, Bwc = self.bp_model.form_state_space_matrices(v=v)
 
         # add yaw dynamics
@@ -568,8 +578,6 @@ class ParticleDynamicsXY(Dynamics):
         B = np.array(([[0, 0], [0, 0], [1, 0], [0, 1]]))
         C = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
         D = np.zeros((C.shape[0], B.shape[1]))
-
-        self.sys, self.gains = from_pole_placement(A, B, C, D, self.poles)
 
         # save initial state x = [px, py, vx, vy]
         self.x = np.zeros(4)
