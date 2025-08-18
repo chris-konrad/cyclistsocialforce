@@ -9,7 +9,7 @@ readme = "README.md"
 version = "1.1.0"
 license = {file = "LICENSE"}
 authors = [
-	{name = "Christoph M. Konrad", email = "c.m.schmidt@tudelft.nl"}
+	{name = "Christoph M. Konrad", email = "c.m.konrad@tudelft.nl"}
 ]
 requires-python = ">3.11"
 dependencies = [
