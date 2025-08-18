@@ -602,13 +602,13 @@ class Vehicle:
 
         Parameters
         ----------
-        x : np.ndarray of float
+        x : np.ndarray of float or float
             List of the next destination x coordinates. First destination has
             to be at x[0].
-        y : np.ndarray of float
+        y : np.ndarray of float or float
             List of the next destination x coordinates. First destination has
             to be at y[0].
-        stop : np.ndarray of float, default = np.zeros_like(x)
+        stop : np.ndarray of float or float, default = np.zeros_like(x)
             Indicator if the cyclist should stop at an intermediate
             destination. 1.0 -> stop, 0.0 -> no stop.
         reset : bool
@@ -620,15 +620,21 @@ class Vehicle:
         ---------
         v0.0.x  First implementation
         v0.1.x  Added stop flags
+        07/25   Update current destination with first destination in queue when "reset" is True.
 
         """
-
-        if stop == None:
+        x = np.array([x]).flatten()
+        y = np.array([y]).flatten()
+        
+        if stop is None:
             stop = np.zeros_like(x)
+        else:
+            stop = np.array([stop]).flatten()
 
         if reset or self.destqueue is None:
             self.destqueue = np.c_[x, y, stop]
             self.destpointer = 0
+            self.dest = [x[0], y[0], stop[0]]
         else:
             self.destqueue = np.vstack((self.destqueue, np.c_[x, y, stop]))
 
@@ -1036,6 +1042,8 @@ class WhippleCarvalloBicycle(Vehicle):
     """A bicycle with Whipple Carvallo Dynamics."""
 
     PARAMS_TYPE = WhippleCarvalloBicycleParameters
+    N_STATES = 6
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "phi[rad]"]
 
     def __init__(self, s0, **kwargs):
         """Create a Whipple Carvallo dynamics bicycle.
@@ -1050,10 +1058,8 @@ class WhippleCarvalloBicycle(Vehicle):
             overwritten by this constructor.
         """
 
-        assert len(s0) >= 6, (
-            "s0 has to have at least six elements:",
-            " (x, y, psi, v, delta, theta)!",
-        )
+        if len(s0) != self.N_STATES:
+            raise ValueError(f"The initial state s0 has to be size {self.N_STATES} with states {self.STATE_NAMES}.")
 
         # default parameters
         kwargs = self.verify_params_class(kwargs)
@@ -1072,7 +1078,7 @@ class WhippleCarvalloBicycle(Vehicle):
         self.drawing_class = BicycleDrawing2D
 
         # state names
-        self.s_names += ["delta[deg]", "theta[deg]"]
+        self.s_names = self.STATE_NAMES
 
 
 class HessBicycle(Vehicle):
