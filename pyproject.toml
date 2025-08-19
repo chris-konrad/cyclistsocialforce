@@ -24,7 +24,7 @@ dependencies = [
 	"opencv-python",
 	"bicycleparameters",
 	"datetime",
-	"sympy"
+	"sympy",
 ]
 	
 [tool.setuptools.packages.find]

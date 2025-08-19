@@ -422,11 +422,11 @@ class SUMOScenario:
                 elif self.bicycle_type == self.BICYCLE_TYPES[2]:
                     s.append(0.0)
                     params = InvPendulumBicycleParameters(t_s=self.t_s)
-                    unew = InvPendulumBicycle(s, vid=str(i), route=route, params=params)
+                    unew = InvPendulumBicycle(s, id=str(i), route=route, params=params)
                 elif self.bicycle_type == self.BICYCLE_TYPES[3]:
                     s.append(0.0)
                     params = WhippleCarvalloBicycleParameters(t_s=self.t_s)
-                    unew = WhippleCarvalloBicycle(s, vid=str(i), route=route, params=params)
+                    unew = WhippleCarvalloBicycle(s, id=str(i), route=route, params=params)
                 else:
                     raise ValueError(
                         f"Unknown bicycle type '{self.bicycle_type}'! Known"

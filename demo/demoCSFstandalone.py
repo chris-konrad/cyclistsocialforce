@@ -143,27 +143,27 @@ def main():
     # Create bicycle objects
     if args.use_inv_pendulum_bike:
         bike1 = InvPendulumBicycle(
-            (-23 + 17, 0, 0, 5, 0, 0), userId="a", saveForces=True
+            (-23 + 17, 0, 0, 5, 0, 0), id="a", saveForces=True
         )
         bike1.params.v_desired_default = 4.5
         print(bike1.params.v_desired_default)
         bike2 = InvPendulumBicycle(
-            (0 + 15, -20, np.pi / 2, 5, 0, 0), userId="b", saveForces=True
+            (0 + 15, -20, np.pi / 2, 5, 0, 0), id="b", saveForces=True
         )
         bike2.params.v_desired_default = 5.0
         bike3 = InvPendulumBicycle(
-            (-2 + 15, -20, np.pi / 2, 5, 0, 0), userId="c", saveForces=True
+            (-2 + 15, -20, np.pi / 2, 5, 0, 0), id="c", saveForces=True
         )
         bike3.params.v_desired_default = 5.0
     else:
-        bike1 = Bicycle((-23 + 17, 0, 0, 5, 0), userId="a", saveForces=True)
+        bike1 = Bicycle((-23 + 17, 0, 0, 5, 0), id="a", saveForces=True)
         bike1.params.v_desired_default = 4.5
         bike2 = Bicycle(
-            (0 + 15, -20, np.pi / 2, 5, 0), userId="b", saveForces=True
+            (0 + 15, -20, np.pi / 2, 5, 0), id="b", saveForces=True
         )
         bike2.params.v_desired_default = 5.0
         bike3 = Bicycle(
-            (-2 + 15, -20, np.pi / 2, 5, 0), userId="c", saveForces=True
+            (-2 + 15, -20, np.pi / 2, 5, 0), id="c", saveForces=True
         )
         bike3.params.v_desired_default = 5.0
 

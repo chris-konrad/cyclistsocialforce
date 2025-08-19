@@ -59,7 +59,7 @@ class Vehicle:
     def __init__(
         self,
         s0,
-        vid="unknown",
+        id="unknown",
         route=(),
         saveForces=False,
         params=None,
@@ -93,7 +93,7 @@ class Vehicle:
         ----------
         s0 : List of float
             List containing the initial vehicle state (x, y, theta, v, delta).
-        vid : str, optional
+        id : str, optional
             String for identifying this vehicle. Default = ""
         route : list of str, optional
             List of SUMO edge IDs describing the vehicle route. An empty list
@@ -165,8 +165,8 @@ class Vehicle:
             self.trajF = np.zeros((2, int(30 / self.params.t_s)))
 
         # vehicle id
-        assert isinstance(vid, str), "User ID has to be a string."
-        self.id = vid
+        assert isinstance(id, str), "User ID has to be a string."
+        self.id = id
 
         # follow a route
         assert isinstance(route, tuple), "Route has to be a tuple"
@@ -1140,7 +1140,7 @@ class StationaryVehicle(Vehicle):
         ----------
         s0 : List of float
             List containing the initial car state (x, y, psi, v).
-        vid : str, optional
+        id : str, optional
             String for identifying this vehicle. Default = ""
         trajectory : array-like, optional
             List or array of consecutive vehicle states where the first
@@ -1221,7 +1221,7 @@ class Bicycle(Vehicle):
     )
 
     def __init__(
-        self, s0, vid="unknown", route=(), saveForces=False, params=None
+        self, s0, id="unknown", route=(), saveForces=False, params=None
     ):
         """
 
@@ -1229,7 +1229,7 @@ class Bicycle(Vehicle):
         ----------
         s0 : List of float
             List containing the initial vehicle state (x, y, theta, v, delta).
-        vid : str, optional
+        id : str, optional
             String for identifying this vehicle. Default = ""
         route : list of str, optional
             List of SUMO edge IDs describing the vehicle route. An empty list
@@ -1252,7 +1252,7 @@ class Bicycle(Vehicle):
             self.params = params
 
         # call super
-        Vehicle.__init__(self, s0, vid, route, saveForces, 0)
+        Vehicle.__init__(self, s0, id, route, saveForces, 0)
 
         self.updateExcentricity()
 
@@ -1538,7 +1538,7 @@ class TwoDBicycle(Bicycle):
     )
 
     def __init__(
-        self, s0, vid="unknown", route=(), saveForces=False, params=None
+        self, s0, id="unknown", route=(), saveForces=False, params=None
     ):
         """Create a new bicycle based on the 2D two-wheeler model.
 
@@ -1553,7 +1553,7 @@ class TwoDBicycle(Bicycle):
          ----------
          s0 : List of float
              List containing the initial vehicle state (x, y, theta, v, delta).
-         vid : str, optional
+         id : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
              List of SUMO edge IDs describing the vehicle route. An empty list
@@ -1574,7 +1574,7 @@ class TwoDBicycle(Bicycle):
             assert isinstance(params, InvPendulumBicycleParameters)
             self.params = params
 
-        Bicycle.__init__(self, s0[0:5], vid, route, saveForces, 0)
+        Bicycle.__init__(self, s0[0:5], id, route, saveForces, 0)
 
         self.s_names += ["delta[deg]"]
 
@@ -1930,7 +1930,7 @@ class InvPendulumBicycle(TwoDBicycle):
          ----------
          s0 : List of float
              List containing the initial vehicle state (x, y, theta, v, delta).
-         vid : str, optional
+         id : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
              List of SUMO edge IDs describing the vehicle route. An empty list
