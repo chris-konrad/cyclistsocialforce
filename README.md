@@ -47,6 +47,8 @@ The package is research code under development. This is the development branch. 
    - [`pypaperutils`](https://github.com/chris-konrad/pypaperutils) for colours of the TU Delft color scheme
    
    - [`mypyutils`](https://github.com/chris-konrad/mypyutils) for some convenience functions
+   
+   - 
 
 ## Demos
 

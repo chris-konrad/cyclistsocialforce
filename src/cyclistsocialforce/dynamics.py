@@ -427,7 +427,8 @@ class WhippleCarvalloDynamics(Dynamics):
         Parameters
         ----------
         t : Sympy.Symbol, optional
-            Time symbol. If provided, The state-space matrices will include v(t) as sm.Function. Otherwise, v will be included as sm.Symbol
+            Time symbol. If provided, The state-space matrices will include v(t) as sm.Function. 
+            Otherwise, v will be included as sm.Symbol
 
         Returns
         -------
