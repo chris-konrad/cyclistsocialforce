@@ -220,7 +220,7 @@ class WhippleCarvalloDynamics(Dynamics):
         self.v = bicycle.s[3]
         self.gains = self._get_gains(self.v)
         self.x = np.array([
-            bicycle.s[5],   #roll phi
+            -bicycle.s[5],   #roll phi
             bicycle.s[4],   #steer delta
             bicycle.s[7],   #roll rate phidot
             bicycle.s[6],   #steer rate deltadot
@@ -318,7 +318,7 @@ class WhippleCarvalloDynamics(Dynamics):
         """
 
         # input symbols
-        p_x_c, p_y_c, v = sm.symbols("x_c, y_c, v")
+        psi_c, v = sm.symbols("psi_c, v")
         
         # state symbols
         state_names = ["phi", "delta", "phidot", "deltadot", "psi", "p_x", "p_y"]
@@ -331,7 +331,7 @@ class WhippleCarvalloDynamics(Dynamics):
         Kx_param_ids = np.array([0,1,2,3,4])
         Ku_param_ids = np.array([4])
 
-        inputs = [p_x_c, p_y_c]
+        inputs = [psi_c]
         states = [sm.Symbol(s) for s in state_names]
         params = [sm.Symbol(p) for p in param_names]
 
@@ -348,8 +348,7 @@ class WhippleCarvalloDynamics(Dynamics):
         K_u = sm.Matrix([[params[j]] for j in Ku_param_ids])
         
         # bike-rider eoms
-        f_br = ((A_br - B_br * K_x) * x_br + B_br * K_u * sm.atan((p_y_c - states[pos_state_ids[1]]) / 
-                                                                (p_x_c - states[pos_state_ids[0]])))
+        f_br = ((A_br - B_br * K_x) * x_br + B_br * K_u * psi_c)
         
         # forward motion eoms 
         f_fw = sm.Matrix(
@@ -381,7 +380,7 @@ class WhippleCarvalloDynamics(Dynamics):
         eval_jacobian = sm.lambdify((params, inputs, x, x_next, v, h), J)
 
         return eval_residual, eval_jacobian
-
+    
 
     def get_statespace_matrices(self, v):
         """
@@ -404,6 +403,66 @@ class WhippleCarvalloDynamics(Dynamics):
 
         B = np.zeros((5, 2))
         B[:4, :] = Bwc
+
+        # output
+        C = np.zeros((1, A.shape[1]))
+        C[0, 4] = 1
+        D = np.zeros((C.shape[0], B.shape[1]))
+
+        return A, B, C, D
+    
+    def get_symbolic_statespace_matrices(self, t=None):
+        """
+        Return the statespace matrices in symbolic form depending on the 
+        speed v(t). 
+        
+        dx = A(v(t))x + Bu
+        y = Cx + Du
+        
+        for x = [phi, delta, dphi, ddelta, psi]^T
+        and u = [Tphi, Tdelta]^T
+
+        A(v(t))
+
+        Parameters
+        ----------
+        t : Sympy.Symbol, optional
+            Time symbol. If provided, The state-space matrices will include v(t) as sm.Function. Otherwise, v will be included as sm.Symbol
+
+        Returns
+        -------
+        A : Sympy.matrix
+            Matrix A(v(t)).
+        B : Numpy.ndarray
+            Matrix B
+        C : Numpy.ndarray
+            Matrix C
+        D : Numpy.ndarray
+            Matrix D
+
+        """
+
+        M, C1, K0, K2 = self.bp_model.form_reduced_canonical_matrices()
+        g = 9.81
+
+        if t is not None:
+            v = sm.Function("v")(t)
+        else:
+            v = sm.Symbol("v")
+        
+        Minv = np.linalg.inv(M)
+
+        # A matrix
+        A = sm.Matrix(np.zeros((5,5)))
+        A[2:4, 0:2] = -Minv @ (g * K0 + v**2 * K2)
+        A[0:2, 2:4] = np.identity(2)
+        A[2:4, 2:4] = -Minv @ C1 * v
+        A[4, 1] = self.A41_over_v * v
+        A[4, 3] = self.A43
+
+        # B matrix
+        B = np.zeros((5, 2))
+        B[2:4, :] = Minv
 
         # output
         C = np.zeros((1, A.shape[1]))
@@ -457,19 +516,38 @@ class WhippleCarvalloDynamics(Dynamics):
         v = thresh(self.v + self.t_s * a, self.v_max)
 
         return v
+    
+    def _calc_commanded_yaw(self, Fx, Fy):
+        """ Calculate the commanded yaw angle from the social forces.
+
+        The yaw angle is normally represented in [-np.pi, pi]. To make sure that the
+        correct rotation is chosen to compensate the commanded yaw, the commanded
+        angle needs to be augmented to the interval [psi-np.pi, psi+pi].
+
+        """
+
+        psi_F = limitAngle(np.arctan2(Fy, Fx))
+
+        psi = self.x[4]
+        delta_psi = angleDifference(psi, psi_F) 
+
+        psi_c = psi + delta_psi
+
+        return psi_c
 
 
     def step(self, bicycle, Fx, Fy):
 
         #update speed
         v = self._step_speed(Fx, Fy)
+        #v = bicycle.s[3]
 
         #update gains
         self.gains = self._get_gains(v)
 
         #integration of lateral dynamics
         gains = self.gains.flatten()
-        inputs = bicycle.dest[0:2]
+        inputs = np.array([self._calc_commanded_yaw(Fx, Fy)])
 
         def residual(x_next):
             return self.eval_lat_residual(gains, inputs, self.x, x_next, v, self.t_s).flatten()
@@ -478,6 +556,8 @@ class WhippleCarvalloDynamics(Dynamics):
             return self.eval_lat_jacobian(gains, inputs, self.x, x_next, v, self.t_s)
         
         sol = root(residual, self.x, jac=jacobian, method='lm')
+        if not sol.success:
+            raise RuntimeError(f"Failed to solve nonlinear dynamics of agent {bicycle.id} in step {bicycle.i}! scipy.optimize.root exited with '{sol.message}'")
 
         # update state
         self.x = sol.x
@@ -490,6 +570,8 @@ class WhippleCarvalloDynamics(Dynamics):
         bicycle.s[3] = self.v # speed
         bicycle.s[4] = limitAngle(self.x[1])  # steer
         bicycle.s[5] = -limitAngle(self.x[0])  # roll
+        bicycle.s[6] = -self.x[2] # roll rate
+        bicycle.s[7] = self.x[3] # steer rate
 
 
 class HessBikeRiderDynamics(WhippleCarvalloDynamics):

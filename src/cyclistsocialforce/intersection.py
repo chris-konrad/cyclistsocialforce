@@ -895,6 +895,7 @@ class SocialForceIntersection:
 
         self.hist_n_vecs.append(self.n_bikes)
 
+
     def set_animated(self, animated):
         """Set the animation property of the intersection and all it's vehicles
 

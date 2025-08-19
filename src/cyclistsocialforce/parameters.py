@@ -1212,9 +1212,7 @@ class WhippleCarvalloBicycleParameters(BicycleParameters):
     
     def __init__(self, 
                  bicycleParameterDict = meijaard2007_browser_jason, 
-                 poles = (-18 + 0j, -19 + 0, -20 + 0j, 
-                          -1.2240726404163056+1.2879634520488243j, 
-                          -1.2240726404163056-1.2879634520488243j),
+                 poles = (-3.3+9.5j, -3.3-9.5j, -1.3+2.5j, -1.3-2.5j, -4.0),
                  p_dist_roll = 0.00,
                  p_dist_steer = 0.00,
                  T_dist_roll = 9000,

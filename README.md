@@ -17,9 +17,9 @@ We provide seven different bicycle models:
 
 - `vehicle.WhippleCarvalloBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) with full-state feedback control. Inherits path-planning and repulsive forces from `vehicle.TwoDBicycle`
 
-- `vehicle.HessBicycle`:  Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al. 2007) with the rider-control-model by Hess et al. (2012). Inherits path-planning and repulsive forces from `vehicle.TwoDBicycle`
+- `vehicle.ParticleBicycle`: A simple model of a bicycle as a mass-less particle (UNDER DEVELOPMENT).
 
-- `vehicle.ParticleBicycle`: A simple model of a bicycle as a mass-less particle. 
+- `vehicle.PlanarBicycle`: Simple two-wheeler kinematics without wheel slip. (UNDER DEVELOPMENT)
 
 ### Disclaimer
 

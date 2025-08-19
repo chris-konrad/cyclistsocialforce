@@ -56,6 +56,9 @@ class Vehicle:
     PARAMS_TYPE = VehicleParameters
     REQUIRED_PARAMS = ("d_arrived_inter", "hfov")
 
+    N_STATES = 4
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]"]
+
     def __init__(
         self,
         s0,
@@ -92,7 +95,7 @@ class Vehicle:
         Parameters
         ----------
         s0 : List of float
-            List containing the initial vehicle state (x, y, theta, v, delta).
+            List containing the initial vehicle state (x, y, psi, v, delta).
         id : str, optional
             String for identifying this vehicle. Default = ""
         route : list of str, optional
@@ -152,9 +155,15 @@ class Vehicle:
         # time step counter
         self.i = 0
 
-        # vehicle state (x, y, theta, v)
+        # vehicle state (x, y, psi, v)
+        if len(s0) < self.N_STATES:
+            raise ValueError(f"The initial state s0 has to be size {self.N_STATES} with states {self.STATE_NAMES}. Instead it was {s0}.")
+        if len(s0) > self.N_STATES:
+            s0 = s0[:self.N_STATES]
+
         self.s = np.array(s0, dtype=float)
         self.s[2] = limitAngle(s0[2])
+        self.s_names = self.STATE_NAMES
 
         # trajectory (list of past states)
         self.traj = np.zeros((len(s0), int(30 / self.params.t_s)))
@@ -206,8 +215,6 @@ class Vehicle:
         else:
             self.uncontrolled = False
 
-        # state names
-        self.s_names = ["x[m]", "y[m]", "phi[deg]", "v[m/s]"]
 
     @staticmethod
     def step_follow_traj(Vehicle, F1=None, F2=None):
@@ -770,13 +777,14 @@ class Vehicle:
             states_to_plot = temp
 
         if axes is None:
-            fig, axes = plt.subplots(np.sum(states_to_plot), 1, sharex=True)
+            fig, axes = plt.subplots(np.sum(states_to_plot), 1, sharex=True, layout='constrained')
             for ax, name in zip(axes, np.array(self.s_names)[states_to_plot]):
                 ax.set_ylabel(name)
                 if "deg" in name:
                     ax.set_ylim(-180, 180)
             axes[-1].set_xlabel("t[s]")
             axes[-1].legend()
+            axes[0].set_title('Agent States')
 
         assert (
             len(states_to_plot) == self.s.shape[0]
@@ -873,6 +881,7 @@ class Vehicle:
                 ]
             for ax, c in zip(axes, components_to_plot):
                 ax.set_ylabel(c)
+            axes[0].set_title('Social Forces')
 
         assert len(axes) == len(
             components_to_plot
@@ -908,223 +917,6 @@ class Vehicle:
 
 
 class UncontrolledVehicle(Vehicle):
-    def __init__(self, s0, traj=(), **kwargs):
-        """Object respresenting a stationary (uncontrolled or externally
-        controlled) vehicle.
-
-        The follows the prediscribed trajectory in it's traj property. To
-        externally control this vehicle, leave traj empty on initialisation
-        and make sure that the next step is populated before a call to
-        UncontrolledVehicle.step().
-
-        Parameters
-        ----------
-        s0 : List of float
-            List containing the initial vehicle state (x, y, psi, v, ...).
-        traj : array-like, optional
-            List or array of consecutive vehicle states where the first
-            dimension contains the state variable and the second dimension
-            contains the evolution of states. If empty, the car will not move.
-            The default is ().
-        **kwargs
-            Any keyword argument of cyclistsocialforce.vehicle.Vehicle
-        """
-
-        kwargs = dict(kwargs, dyn_step_func=self.step_follow_traj)
-
-        # call super
-        Vehicle.__init__(self, s0, **kwargs)
-
-        # overwrite empty trajectory property with the prediscribed trajectory.
-        if len(traj) > 0:
-            self.traj = np.array(traj)
-
-    def step_follow_traj(self, F1=None, F2=None):
-        """
-        Move the uncontrolled vehicle to the next state given by its
-        predescribed fixed trajctory. The paramters Fx and Fy are ignored.
-
-        """
-        # move only of there are still states in the predescribed trajectory.
-        if np.shape(self.traj)[1] > self.i + 1:
-            self.s = self.traj[:, self.i + 1]
-
-
-class ParticleBicycle(Vehicle):
-
-    PARAMS_TYPE = ParticleBicycleParameters
-
-    """ A bicycle with particle dynamics. 
-    """
-
-    def __init__(self, s0, **kwargs):
-        """Create a particle dynamics bicycle.
-
-        Parameters
-        ----------
-        s0 : array-like
-            Initial state of the bike: (x0, y0, psi0, v0).
-        **kwargs
-            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are
-            overwritten by this constructor.
-        """
-
-        assert len(s0) >= 4, "s0 has to have four elements: (x,y,psi,v)!"
-        # s0 = s0[0:4]
-
-        # default parameters
-        kwargs = self.verify_params_class(kwargs)
-
-        Vehicle.__init__(self, s0, **kwargs)
-
-        # init dynamics: particle dynamics model with Fx/y input
-        self.dynamics = ParticleDynamicsXY(self)
-        self.dyn_step_func = self.dynamics.step
-
-        # init forces
-        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
-        self.dest_force_func = TwoDBicycle.calcDestinationForce
-
-        # init drawing
-        self.drawing_class = BicycleDrawing2D
-
-        # state names
-        self.s_names += [""] * (len(s0) - len(self.s_names))
-
-
-class PlanarBicycle(Vehicle):
-    """A bicycle with planar two-wheeler kinematics."""
-
-    PARAMS_TYPE = PlanarBicycleParameters
-
-    def __init__(self, s0, **kwargs):
-        """
-        Create a planar bicycle
-
-        Parameters
-        ----------
-        s0 : array-like
-            Initial state of the bike: (x0, y0, psi0, v0, delta0).
-        **kwargs : TYPE
-            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are
-            overwritten by this constructor.
-        """
-
-        assert len(s0) >= 5, (
-            "s0 has to have at least five elements:",
-            " (x, y, psi, v, delta)!",
-        )
-
-        # default parameters
-        kwargs = self.verify_params_class(kwargs)
-
-        Vehicle.__init__(self, s0, **kwargs)
-
-        # init dynamics: Planar dynamics model with Fx/y input
-        self.dynamics = PlanarTwoWheelerDynamics(self)
-        self.dyn_step_func = self.dynamics.step
-
-        # init forces
-        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
-        self.dest_force_func = TwoDBicycle.calcDestinationForce
-
-        # init drawing
-        self.drawing_class = BicycleDrawing2D
-
-        # state names
-        self.s_names += ["delta[deg]"]
-        self.s_names += [""] * (len(s0) - len(self.s_names))
-
-
-class WhippleCarvalloBicycle(Vehicle):
-    """A bicycle with Whipple Carvallo Dynamics."""
-
-    PARAMS_TYPE = WhippleCarvalloBicycleParameters
-    N_STATES = 6
-    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "phi[rad]"]
-
-    def __init__(self, s0, **kwargs):
-        """Create a Whipple Carvallo dynamics bicycle.
-
-        Parameters
-        ----------
-        s0 : array-like
-            Initial state of the bike: (x0, y0, psi0, v0, delta0, theta0).
-        **kwargs
-            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are
-            overwritten by this constructor.
-        """
-
-        if len(s0) != self.N_STATES:
-            raise ValueError(f"The initial state s0 has to be size {self.N_STATES} with states {self.STATE_NAMES}.")
-
-        # default parameters
-        kwargs = self.verify_params_class(kwargs)
-
-        Vehicle.__init__(self, s0, **kwargs)
-
-        # init dynamics: Whipple-Carvallo dynamics model with Fx/y input
-        self.dynamics = WhippleCarvalloDynamics(self)
-        self.dyn_step_func = self.dynamics.step
-
-        # init forces
-        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
-        self.dest_force_func = TwoDBicycle.calcDestinationForce
-
-        # init drawing
-        self.drawing_class = BicycleDrawing2D
-
-        # state names
-        self.s_names = self.STATE_NAMES
-
-
-class HessBicycle(Vehicle):
-    """A bicycle with Whipple Carvallo Dynamics and the Hess Bicycle Rider
-    Control model.
-
-    See Section "Control" in Moore (2012).
-    """
-
-    def __init__(self, s0, **kwargs):
-        """Create a Hess bicycle.
-
-        Parameters
-        ----------
-        s0 : array-like
-            Initial state of the bike: (x0, y0, psi0, v0, delta0, theta0).
-        **kwargs
-            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
-            "dest_force_func", "dyn_step_func", and "drawing_class" are
-            overwritten by this constructor.
-        """
-
-        assert len(s0) == 6, "s0 has to have six elements: (x,y,psi,v)!"
-
-        # default parameters
-        if "params" not in kwargs.keys():
-            kwargs = dict(kwargs, params=WhippleCarvalloBicycleParameters())
-
-        Vehicle.__init__(self, s0, **kwargs)
-
-        # init dynamics: particle dynamics model with Fx/y input
-        self.dynamics = HessBikeRiderDynamics(self)
-        self.dyn_step_func = self.dynamics.step
-
-        # init forces
-        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
-        self.dest_force_func = TwoDBicycle.calcDestinationForce
-
-        # init drawing
-        self.drawing_class = BicycleDrawing2D
-
-        # state names
-        self.s_names += ["delta[deg]", "theta[deg]"]
-
-
-class StationaryVehicle(Vehicle):
 
     PARAMS_TYPE = CarParameters
 
@@ -1219,6 +1011,8 @@ class Bicycle(Vehicle):
         "d_arrived_inter",
         "hfov",
     )
+    N_STATES = 5
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]"]
 
     def __init__(
         self, s0, id="unknown", route=(), saveForces=False, params=None
@@ -1228,7 +1022,7 @@ class Bicycle(Vehicle):
         Parameters
         ----------
         s0 : List of float
-            List containing the initial vehicle state (x, y, theta, v, delta).
+            List containing the initial vehicle state (x, y, psi, v, delta).
         id : str, optional
             String for identifying this vehicle. Default = ""
         route : list of str, optional
@@ -1327,6 +1121,7 @@ class Bicycle(Vehicle):
 
         return P
 
+
     def calcRepulsiveForce(self, x, y, phi=None):
         """Evaluate the repulsive force of the ego vehicle.
 
@@ -1368,6 +1163,7 @@ class Bicycle(Vehicle):
         Fy = Frho0 * np.sin(phi) + Fphi0 * np.cos(phi)
 
         return (Fx, Fy)
+
 
     def calcDestinationForceField(self, x, y):
         """Calculates force vectors from locations in x, y to the current
@@ -1503,6 +1299,10 @@ class Bicycle(Vehicle):
 
         self.traj[:, self.i] = self.s
 
+        if self.saveForces:
+            self.trajF[0, self.i] = Fx
+            self.trajF[1, self.i] = Fy
+
         # Drawing
         self.update_drawing()
 
@@ -1552,7 +1352,7 @@ class TwoDBicycle(Bicycle):
          Parameters
          ----------
          s0 : List of float
-             List containing the initial vehicle state (x, y, theta, v, delta).
+             List containing the initial vehicle state (x, y, psi, v, delta).
          id : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
@@ -1574,22 +1374,7 @@ class TwoDBicycle(Bicycle):
             assert isinstance(params, InvPendulumBicycleParameters)
             self.params = params
 
-        Bicycle.__init__(self, s0[0:5], id, route, saveForces, 0)
-
-        self.s_names += ["delta[deg]"]
-
-        # current state
-        #   [  x  ]   horizontal position
-        #   [  y  ]   vertical position
-        #   [ phi ]   yaw angle
-        #   [  v  ]   longitudinal speed
-        #   [delta]   steer angle
-        self.s = np.array(s0, dtype=float)
-        self.s[2] = limitAngle(s0[2])
-
-        # trajectory (list of past states)
-        self.traj = np.zeros((5, int(30 / self.params.t_s)))
-        self.traj[:, 0] = s0
+        Bicycle.__init__(self, s0, id, route, saveForces, 0)
 
         self.speed_controller = PIDcontroller(
             self.params.k_p_v, 0, 0, self.params.t_s, isangle=False
@@ -1727,14 +1512,16 @@ class TwoDBicycle(Bicycle):
         # interpolate
         try:
             tck, u = interpolate.splprep((x, y), s=0.0)
-        except TypeError as e:
+        except Exception as e:
             print(f"Bike {self.id} has a problem!")
             print(f"isLastDest: {self.isLastDest()}")
             print(f"destqueue: {self.destqueue}")
             print(f" i: {self.i}")
-            print(f" ispl: {ispl}")
+            if self.isLastDest():
+                print(f" ispl: {ispl}")
             print(f"x : {x}")
-            print(f"x : {y}")
+            print(f"y : {y}")
+            print(f"traj : {self.traj[:, (self.i - 1, self.i)]}")
             raise e
         xs, ys = interpolate.splev(np.linspace(0, 1, nSplpnts), tck)
         dxs, dys = interpolate.splev(np.linspace(0, 1, nSplpnts), tck, der=1)
@@ -1914,6 +1701,8 @@ class InvPendulumBicycle(TwoDBicycle):
         "d_arrived_inter",
         "hfov",
     )
+    N_STATES = 6
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "theta[rad]"]
 
     def __init__(self, s0, **kwargs):
         """Create a new bicycle based on the inverted pendulum model.
@@ -1921,15 +1710,15 @@ class InvPendulumBicycle(TwoDBicycle):
          InvPendulumBicycle state variable definition:
              [  x  ]   horizontal position [m]
              [  y  ]   vertical position [m]
-        s =  [ phi ]   yaw angle [rad]
+        s =  [ psi ]   yaw angle [rad]
              [  v  ]   longitudinal speed [m/s]
              [delta]   steer angle [rad]
-             [theta]   lean angle [rad]
+             [theta]   roll angle [rad]
 
          Parameters
          ----------
          s0 : List of float
-             List containing the initial vehicle state (x, y, theta, v, delta).
+             List containing the initial vehicle state (x, y, psi, v, delta, theta).
          id : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
@@ -1949,23 +1738,8 @@ class InvPendulumBicycle(TwoDBicycle):
         # default parameters
         kwargs = self.verify_params_class(kwargs)
 
-        TwoDBicycle.__init__(self, s0[0:5], **kwargs)
-
-        # current state
-        #   [  x  ]   horizontal position
-        #   [  y  ]   vertical position
-        #   [ phi ]   yaw angle
-        #   [  v  ]   longitudinal speed
-        #   [delta]   steer angle
-        #   [theta]   lean angle
-        self.s = np.array(s0, dtype=float)
-        self.s[2] = limitAngle(s0[2])
-        self.s[5] = limitAngle(s0[5])
-        self.s_names += ["theta[deg]"]
-
-        # trajectory (list of past states)
-        self.traj = np.zeros((6, int(30 / self.params.t_s)))
-        self.traj[:, 0] = s0
+        # init parent
+        TwoDBicycle.__init__(self, s0, **kwargs)
 
         # Model dynamics as a state-space system
         self.init_dynamics_statespace()
@@ -2192,6 +1966,141 @@ class InvPendulumBicycle(TwoDBicycle):
 
         self.zrid[0] = not cvwalk and (self.zrid[1] and cdelta or self.zrid[0])
         self.zrid[1] = not self.zrid[0]
+
+
+class WhippleCarvalloBicycle(Vehicle):
+    """A bicycle with Whipple Carvallo Dynamics."""
+
+    PARAMS_TYPE = WhippleCarvalloBicycleParameters
+    N_STATES = 8
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "phi[rad]", "deltadot[rad/s]", "phidot[rad/s]"]
+
+    def __init__(self, s0, **kwargs):
+        """Create a Whipple Carvallo dynamics bicycle.
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0, delta0, theta0, deltadot0, thetadot0).
+            x - x-position
+            y - y-position
+            psi - yaw angle
+            v - speed
+            delta - steer angle
+            theta - roll angle
+            ...dot - rate
+        **kwargs
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
+            overwritten by this constructor.
+        """
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
+
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init dynamics: Whipple-Carvallo dynamics model with Fx/y input
+        self.dynamics = WhippleCarvalloDynamics(self)
+        self.dyn_step_func = self.dynamics.step
+
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+
+        # init drawing
+        self.drawing_class = BicycleDrawing2D
+
+
+class ParticleBicycle(Vehicle):
+
+    PARAMS_TYPE = ParticleBicycleParameters
+
+    """ A bicycle with particle dynamics. 
+    """
+
+    def __init__(self, s0, **kwargs):
+        """Create a particle dynamics bicycle.
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0).
+        **kwargs
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
+            overwritten by this constructor.
+        """
+
+        if len(s0) < self.N_STATES:
+            raise ValueError(f"The initial state s0 has to be size {self.N_STATES} with states {self.STATE_NAMES}.")
+        if len(s0) > self.N_STATES:
+            s0 = s0[:self.N_STATES]
+
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
+
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init dynamics: particle dynamics model with Fx/y input
+        self.dynamics = ParticleDynamicsXY(self)
+        self.dyn_step_func = self.dynamics.step
+
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+
+        # init drawing
+        self.drawing_class = BicycleDrawing2D
+
+        # state names
+        self.s_names += [""] * (len(s0) - len(self.s_names))
+
+
+class PlanarBicycle(Vehicle):
+    """A bicycle with planar two-wheeler kinematics."""
+
+    PARAMS_TYPE = PlanarBicycleParameters
+    N_STATES = 5
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]"]
+
+    def __init__(self, s0, **kwargs):
+        """
+        Create a planar bicycle
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0, delta0).
+        **kwargs : TYPE
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
+            overwritten by this constructor.
+        """
+
+        assert len(s0) >= 5, (
+            "s0 has to have at least five elements:",
+            " (x, y, psi, v, delta)!",
+        )
+
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
+
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init dynamics: Planar dynamics model with Fx/y input
+        self.dynamics = PlanarTwoWheelerDynamics(self)
+        self.dyn_step_func = self.dynamics.step
+
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+
+        # init drawing
+        self.drawing_class = BicycleDrawing2D
+
+        # state names
+        self.s_names += ["delta[deg]"]
+        self.s_names += [""] * (len(s0) - len(self.s_names))
 
 
 ### Collection of Destination force functions
