@@ -8,7 +8,7 @@ usage: demoCSFstandalone.py [-h] [-s] [-i]
 optional arguments:
   -h, --help  show this help message and exit
   -s, --save  Save results to ./output/
-  -m, --model Select between 'whipplecarvallo' (default), invpendulum, and planar bicycle.
+  -m, --model Select between 'whipplecarvallo' (default), 'particle', 'invpendulum', and 'planartwowheel'.
 
 Created on Tue Feb 14 18:26:19 2023
 @author: Christoph Konrad
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 from datetime import datetime
 
-from cyclistsocialforce.vehicle import Bicycle, InvPendulumBicycle, WhippleCarvalloBicycle
+from cyclistsocialforce.vehicle import Bicycle, ParticleBicycle, InvPendulumBicycle, WhippleCarvalloBicycle
 from cyclistsocialforce.intersection import SocialForceIntersection
 from cyclistsocialforce.scenario import Scenario
 
@@ -52,6 +52,7 @@ def get_bike_type(argstr):
 
     MODEL_TYPES = {
         "whipplecarvallo": WhippleCarvalloBicycle,
+        "particle": ParticleBicycle,
         "invpendulum": InvPendulumBicycle,
         "planartwowheel": Bicycle,
     }

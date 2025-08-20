@@ -1174,8 +1174,8 @@ class ParticleBicycleParameters(BicycleParameters):
     N_POLES = 4
     
     def __init__(self, 
-                 poles = None, 
-                 gains = None,
+                 poles = [-2+0j], 
+                 gains = [2],
                  **kwargs):
         BicycleParameters.__init__(self, **kwargs)
         self.gains = gains
@@ -1187,15 +1187,14 @@ class ParticleBicycleParameters(BicycleParameters):
     @poles.setter
     def poles(self, poles):
         if poles is None:
-            poles = (0 + 0j, 
-                     0 + 0j, 
-                     -0.97626953125+0j + 0j, 
-                     -0.97626953125+0j + 0j)
-        if len(poles) != 4:
-            msg = "ParticleBicycleParameters must have four poles! Instead" \
-                  f"you provided {len(poles)}: poles = {poles}"
+            poles = [-2+0j]
+        if not isinstance(poles, (list, tuple, np.ndarray)):
+            poles = np.array(poles)
+        if len(poles) != 1 or np.imag(poles[0]) != 0:
+            msg = "ParticleBicycleParameters must have one real pole! Instead" \
+                  f"you provided {len(poles)} poles = {poles}"
             ValueError(msg)
-        self._poles = poles
+        self._poles = [poles[0]]
         
 class PlanarBicycleParameters(BicycleParameters):
     

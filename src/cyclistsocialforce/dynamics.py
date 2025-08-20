@@ -217,17 +217,8 @@ class WhippleCarvalloDynamics(Dynamics):
         self.v_max = bicycle.params.v_max_riding
 
         # initialize state space system
-        self.v = bicycle.s[3]
+        self.x, self.v = self._transform_state_csf2dynamics(bicycle.s)
         self.gains = self._get_gains(self.v)
-        self.x = np.array([
-            -bicycle.s[5],   #roll phi
-            bicycle.s[4],   #steer delta
-            bicycle.s[7],   #roll rate phidot
-            bicycle.s[6],   #steer rate deltadot
-            bicycle.s[2],   #yaw psidot
-            bicycle.s[0],   #x 
-            bicycle.s[1]    #y
-        ])
 
         # initialize lateral dynamics integrators
         self.eval_lat_residual, self.eval_lat_jacobian = self._get_midpoint_moment_evaluators()
@@ -240,6 +231,87 @@ class WhippleCarvalloDynamics(Dynamics):
         # roll and steer torque disturbance
         if bicycle.params.p_dist_roll > 0 or bicycle.params.p_dist_steer:
             raise Warning("Support for steer and roll torque disturbance removed!")
+        
+
+    def _transform_state_dynamics2csf(self, state_dyn, speed):
+        """ Transforms the state of the dynamic system to cyclistsocialforce coordinates. Ensures that
+        angles are withtin [-pi, pi].
+
+        CSF coordinates (E-frame):
+            ex - forward
+            ey - left
+            ez - up
+
+        Bikemodel coordinates (N-frame), as defined by Moore (2012) and Meijaard et al. (2007)
+            nx - forward
+            ny - right
+            ny - down
+        
+        Parameters
+        ----------
+        state_dyn : array-like
+            The state vector in the bikemodel coordinates: [roll, steer, roll-rate, steer-rate, yaw, x, y]
+
+        Returns
+        -------
+        state_csf : np.ndarray
+            The state vector in cyclistsocialforce coordinates: [x, y, yaw, speed, steer, roll, steer-rate, roll-rate]
+        """
+
+        # steer(rate), yaw and y need to be mirrored
+        state_cfs = np.array([
+            state_dyn[5],               # x
+            -state_dyn[6],              # y
+            -limitAngle(state_dyn[4]),  # yaw
+            speed,                      # speed
+            -limitAngle(state_dyn[1]),  # steer
+            limitAngle(state_dyn[0]),   # roll
+            -state_dyn[3],               # steer-rate
+            state_dyn[2],              # roll-rate
+        ])
+
+        return state_cfs
+
+
+    def _transform_state_csf2dynamics(self, state_csf):
+        """ Transforms the vehicle state given in cyclistsocialforce coordinates
+        into the coordinates of the dynamic system. 
+
+        CSF coordinates (E-frame):
+            ex - forward
+            ey - left
+            ez - up
+
+        Bikemodel coordinates (N-frame), as defined by Moore (2012) and Meijaard et al. (2007)
+            nx - forward
+            ny - right
+            ny - down
+        
+        Parameters
+        ----------
+        state_csf : array-like
+            The state vector in cyclistsocialforce coordinates: [x, y, yaw, speed, steer, roll, steer-rate, roll-rate]
+
+        Returns
+        -------
+        state_dyn : np.ndarray
+            The state vector in the bikemodel coordinates: [roll, steer, roll-rate, steer-rate, yaw, x, y]
+        speed : float
+            The forward speed (same in both reference systems)
+        """
+
+        # steer(rate), yaw and y need to be mirrored
+        state_dyn = np.array([
+            state_csf[5],   #roll 
+            -state_csf[4],  #steer 
+            state_csf[7],   #roll-rate
+            -state_csf[6],  #steer-rate 
+            -state_csf[2],  #yaw
+            state_csf[0],   #x 
+            -state_csf[1]   #y
+        ])
+
+        return state_dyn, state_csf[3]
         
 
     def _config_gains_and_poles(self, params):
@@ -488,11 +560,14 @@ class WhippleCarvalloDynamics(Dynamics):
             return gains[0]
 
 
-    def _step_speed(self, Fx, Fy):
+    def _step_speed(self, bicycle, Fx, Fy):
         """Propagate the speed dynamics by one time step.
 
         Parameters
         ----------
+        bicycle : cyclistsocialforce.Bicycle
+            Bicycle this speed step is associated with. Unused, kept for API
+            consistency.
         Fx : float
             X-component of the current social force.
         Fy : float
@@ -518,6 +593,7 @@ class WhippleCarvalloDynamics(Dynamics):
 
         return v
     
+
     def _calc_commanded_yaw(self, Fx, Fy):
         """ Calculate the commanded yaw angle from the social forces.
 
@@ -526,6 +602,9 @@ class WhippleCarvalloDynamics(Dynamics):
         angle needs to be augmented to the interval [psi-np.pi, psi+pi].
 
         """
+        
+        #transform lateral force to bikemodel reference frame
+        Fy = - Fy
 
         psi_F = limitAngle(np.arctan2(Fy, Fx))
 
@@ -540,11 +619,11 @@ class WhippleCarvalloDynamics(Dynamics):
     def step(self, bicycle, Fx, Fy):
 
         #update speed
-        v = self._step_speed(Fx, Fy)
-        #v = bicycle.s[3]
+        v = self._step_speed(bicycle, Fx, Fy)
 
-        #update gains
-        self.gains = self._get_gains(v)
+        #update gains if speed changed
+        if v != self.v:
+            self.gains = self._get_gains(v)
 
         #integration of lateral dynamics
         gains = self.gains.flatten()
@@ -565,15 +644,8 @@ class WhippleCarvalloDynamics(Dynamics):
         self.v = v
 
         # update bicycle state
-        bicycle.s[0] = self.x[5] #x-pos
-        bicycle.s[1] = self.x[6] #y-pos
-        bicycle.s[2] = limitAngle(self.x[4])  # yaw
-        bicycle.s[3] = self.v # speed
-        bicycle.s[4] = limitAngle(self.x[1])  # steer
-        bicycle.s[5] = -limitAngle(self.x[0])  # roll
-        bicycle.s[6] = -self.x[2] # roll rate
-        bicycle.s[7] = self.x[3] # steer rate
-
+        bicycle.s = self._transform_state_dynamics2csf(self.x, self.v)
+        
 
 class HessBikeRiderDynamics(WhippleCarvalloDynamics):
     """ Implementing the dynamics of a Bicycle using the linearized
@@ -669,80 +741,277 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
         self.sys = ct.StateSpace(A, B, C, D)
 
 
-class ParticleDynamicsXY(Dynamics):
+class ParticleDynamics(Dynamics):
     """ A class for modelling the dynamics of a bicycle as a mass-less 
     particle in planar space"""
 
-    def __init__(self, Vehicle):
 
-        self.poles = Vehicle.params.poles
+    def __init__(self, vehicle):
 
-        # init state space system
-        A = np.array([[0, 0, 1, 0], [0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0]])
-        B = np.array(([[0, 0], [0, 0], [1, 0], [0, 1]]))
-        C = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
-        D = np.zeros((C.shape[0], B.shape[1]))
+        super().__init__(vehicle)
 
-        # save initial state x = [px, py, vx, vy]
-        self.x = np.zeros(4)
-        self.x[0:2] = Vehicle.s[0:2]
-        self.x[2] = Vehicle.s[3] * np.cos(Vehicle.s[2])
-        self.x[3] = Vehicle.s[3] * np.sin(Vehicle.s[2])
+        self.eval_lat_residual, self.eval_lat_jacobian = self._get_midpoint_moment_evaluators()
+        self._config_gains_and_poles(vehicle.params)
 
-    def step(self, Vehicle, Fx, Fy):
-        """Advance the dynamic model by one time step and update the state
-        of Vehicle accordingly
+        # parameters
+        self.t_s = vehicle.params.t_s
+        self.a_max = vehicle.params.a_max
+        self.v_max = vehicle.params.v_max_riding
+
+        # set fixed gains for the given design speed. 
+        self.gains = self._get_gains()
+
+        # initialize trivial speed controller
+        self.speed_controller = PIDcontroller(
+            vehicle.params.k_p_v, 0, 0, vehicle.params.t_s, isangle=False
+        )
+
+
+        self.x, self.v = self._transform_state_csf2dynamics(vehicle.s)
+
+
+    def _config_gains_and_poles(self, params):
+        """ Configure if dynamics are defined by desired gains or desired poles. Desired poles overwrite desired gains.
+        """
+        
+        self.from_gains = False
+        self.desired_gains = None
+        self.desired_poles = None
+
+        if hasattr(params, 'gains'):
+            if not params.gains is None:
+                self.from_gains = True
+                self.desired_gains = params.gains
+        
+        if hasattr(params, 'poles'):
+            if not params.poles is None:
+                self.from_gains = False
+                self.desired_poles = params.poles
+
+        if (self.desired_gains is None) and (self.desired_poles is None):
+            msg = ("The VehicleParameter object neither defines desired gains nor desired poles! Make sure that"
+                   "'params' has a 'gains' or a 'poles' attribute and that at least one of them is not 'None'.")
+            raise RuntimeError(msg)
+
+
+    def _make_eom_set_particle(self):
+        """
+        Returns dx(t)/dt = f(x(t), u(t)) with
+
+        States and input:
+        x(t) = [psi(t), p_x(t), p_y(t)]^T
+        u(t) = [p_x_c(t), p_y_c(t)]^T
+
+        Unknown gain parameters:
+        k = [k_psi]
+
+        State derivative:
+        dx(t)/dt = [dpsi(t)/dt, dp_x(t)/dt, dp_y(t)/dt]^T
+
+        Returns
+        -------
+        f : sm.Matrix
+            The function f(x(t), u(t)). Shaped [3,1]
+        states : sm.Matrix
+            The state vector shaped [3,1]
+        params : sm.Matrix
+            A vector of the unknown gain parameters in f.
+        inputs : sm.Matrix
+            The input vector u(t) shaped [3,1].
+        v : sm.Function
+            The unknown speed.
         """
 
-        results = ct.forced_response(
-            self.sys,
-            T=np.array([0, Vehicle.params.t_s]),
-            X0=self.x,
-            U=(np.ones(2) * np.array(((Fx,), (Fy,)))),
-            return_x=True,
-            squeeze=False,
-        )
+        # input symbols
+        psi_c, v = sm.symbols("psi_c, v")
+        inputs = [psi_c]
 
-        self.x = results.states[:, 1]
+        # ids of position and orientation states
+        pos_state_ids = np.array([1,2])
+        psi_state_id = 0
 
-        temp, psi_i = cart2polar(
-            (results.states[2, 1]), (results.states[3, 1])
-        )
+        # states and parameters
+        state_names = ["psi", "p_x", "p_y"]
+        param_names = ["k_psi"]
 
-        Vehicle.s[0:2] = results.states[0:2, 1]
-        Vehicle.s[2] = psi_i
-        Vehicle.s[3] = np.sqrt(np.sum(results.states[2:4, 1] ** 2))
-        
-class ParticleDynamicsHelbingMolnar(ParticleDynamicsXY):
-    """ A class for modelling the dynamics of a bicycle as a mass-less particle 
-    in planar space with simple heading + speed tracking as done in Helbing & 
-    Molnar's (1995) original social force model.
+        states = [sm.Symbol(s) for s in state_names]
+        params = [sm.Symbol(p) for p in param_names]
     
-    Literature
-    ----------
-    Helbing, D., & Molnár, P. (1995). Social force model for pedestrian 
-        dynamics. Physical Review E, 51(5), 4282–4286. 
-        https://doi.org/10.1103/PhysRevE.51.4282
-    """
+        # eoms
+        f_psi = sm.Matrix(
+            [(- params[0] * (states[psi_state_id] - psi_c))])
+
+        # forward motion eoms 
+        f_fw = sm.Matrix([[v * sm.cos(states[psi_state_id])],   #v * cos(psi)
+                          [v * sm.sin(states[psi_state_id])]])  #v * sin(psi)
+        
+        # combine yaw_tracking and forward eoms
+        f = f_psi.col_join(f_fw)
+
+        return f, states, params, inputs, v
+
+
+    def _get_midpoint_moment_evaluators(self):
+
+        f, states, params, inputs, v = self._make_eom_set_particle()
+
+        x = sm.Matrix([sm.Symbol(f"{s.name}_n") for s in states])
+        x_next = sm.Matrix([sm.Symbol(f"{s.name}_(n+1)") for s in states])
+
+        x_repl = dict(zip(states, (x+x_next)/2))
+
+        h = sm.symbols("h")
+
+        # Residual R of the implicit midpoint method and it's jacobian.
+        R = x_next - x - h * f.subs(x_repl)
+        J = R.jacobian(x_next)
+
+        eval_residual = sm.lambdify((params, inputs, x, x_next, v, h), R)
+        eval_jacobian = sm.lambdify((params, inputs, x, x_next, v, h), J)
+
+        return eval_residual, eval_jacobian
+
+
+    def _get_gains(self):
+        """ Calculates the gains.
+        """
+
+        if self.from_gains:
+            return self.desired_gains
+        else:
+            return -np.real(self.desired_poles)
+        
+
+    def _transform_state_dynamics2csf(self, state_dyn, speed):
+        """ Transforms the state of the dynamic system to cyclistsocialforce coordinates. Ensures that
+        angles are withtin [-pi, pi].
+        
+        Parameters
+        ----------
+        state_dyn : array-like
+            The state vector in the bikemodel coordinates: [yaw, x, y]
+
+        Returns
+        -------
+        state_csf : np.ndarray
+            The state vector in cyclistsocialforce coordinates: [x, y, yaw, speed]
+        """
+
+        # steer(rate), yaw and y need to be mirrored
+        state_cfs = np.array([
+            state_dyn[1],              # x
+            state_dyn[2],              # y
+            limitAngle(state_dyn[0]),  # yaw
+            speed,                     # speed
+        ])
+
+        return state_cfs
+
+
+    def _transform_state_csf2dynamics(self, state_csf):
+        """ Transforms the vehicle state given in cyclistsocialforce coordinates
+        into the coordinates of the dynamic system. 
+        
+        Parameters
+        ----------
+        state_csf : array-like
+            The state vector in cyclistsocialforce coordinates: [x, y, yaw, speed]
+
+        Returns
+        -------
+        state_dyn : np.ndarray
+            The state vector in the bikemodel coordinates: [yaw, x, y]
+        speed : float
+            The forward speed (same in both reference systems)
+        """
+
+        # steer(rate), yaw and y need to be mirrored
+        state_dyn = np.array([
+            state_csf[2],  #yaw
+            state_csf[0],  #x 
+            state_csf[1]   #y
+        ])
+
+        return state_dyn, state_csf[3]
     
-    def __init__(self, Vehicle):
-        
-        tau = 0.1
-        self.gains = [1/tau]
-        
-        # init state space system
-        A = np.array([[0, 0, 1, 0], [0, 0, 0, 1], [0, 0, -1/tau, 0], [0, 0, 0, -1/tau]])
-        B = np.array(([[0, 0], [0, 0], [1/tau, 0], [0, 1/tau]]))
-        C = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
-        D = np.zeros((C.shape[0], B.shape[1]))
     
-        self.sys = ct.StateSpace(A, B, C, D)
+    def _calc_commanded_yaw(self, Fx, Fy):
+        """ Calculate the commanded yaw angle from the social forces.
+
+        The yaw angle is normally represented in [-np.pi, pi]. To make sure that the
+        correct rotation is chosen to compensate the commanded yaw, the commanded
+        angle needs to be augmented to the interval [psi-np.pi, psi+pi].
+
+        """
+        psi_F = limitAngle(np.arctan2(Fy, Fx))
+
+        psi = self.x[0]
+        delta_psi = angleDifference(psi, psi_F) 
+
+        psi_c = psi + delta_psi
+
+        return psi_c
+
+
+    def _step_speed(self, vehicle, Fx, Fy):
+        """Propagate the speed dynamics by one time step.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Vehicle this speed step is associated with. Unused, kept for API
+            consistency.
+        Fx : float
+            X-component of the current social force.
+        Fy : float
+            y-component of the current social force.
+        a_max
+
+        Returns
+        -------
+        v : float
+            Updated speed
+
+        """
+
+        # desired speed
+        vd = np.sqrt(Fx**2 + Fy**2)
+
+        # acceleration
+        a = self.speed_controller.step(vd - self.v)
+        a = thresh(a, self.a_max)
+
+        # integrate speed
+        v = thresh(self.v + self.t_s * a, self.v_max)
+
+        return v
+
+
+    def step(self, vehicle, Fx, Fy):
+
+        #update speed
+        v = self._step_speed(vehicle, Fx, Fy)
+
+        #integration of lateral dynamics
+        gains = self.gains.flatten()
+        inputs = np.array([self._calc_commanded_yaw(Fx, Fy)])
+
+        def residual(x_next):
+            return self.eval_lat_residual(gains, inputs, self.x, x_next, v, self.t_s).flatten()
+
+        def jacobian(x_next):
+            return self.eval_lat_jacobian(gains, inputs, self.x, x_next, v, self.t_s)
         
-        # save initial state x = [px, py, vx, vy]
-        self.x = np.zeros(4)
-        self.x[0:2] = Vehicle.s[0:2]
-        self.x[2] = Vehicle.s[3] * np.cos(Vehicle.s[2])
-        self.x[3] = Vehicle.s[3] * np.sin(Vehicle.s[2])
+        sol = root(residual, self.x, jac=jacobian, method='lm')
+        if not sol.success:
+            raise RuntimeError(f"Failed to solve nonlinear dynamics of agent {vehicle.id} in step {vehicle.i}! scipy.optimize.root exited with '{sol.message}'")
+
+        # update state
+        self.x = sol.x
+        self.v = v
+
+        # update bicycle state
+        vehicle.s = self._transform_state_dynamics2csf(self.x, self.v)
         
         
 def test_stability(sys, stability_type = "asymptotical"):

@@ -35,9 +35,8 @@ from cyclistsocialforce.vizualisation import (
 )
 
 from cyclistsocialforce.dynamics import (
-    ParticleDynamicsXY,
+    ParticleDynamics,
     WhippleCarvalloDynamics,
-    HessBikeRiderDynamics,
     PlanarTwoWheelerDynamics,
     PIDcontroller
 )
@@ -2042,7 +2041,7 @@ class ParticleBicycle(Vehicle):
         Vehicle.__init__(self, s0, **kwargs)
 
         # init dynamics: particle dynamics model with Fx/y input
-        self.dynamics = ParticleDynamicsXY(self)
+        self.dynamics = ParticleDynamics(self)
         self.dyn_step_func = self.dynamics.step
 
         # init forces

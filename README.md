@@ -17,7 +17,7 @@ We provide seven different bicycle models:
 
 - `vehicle.WhippleCarvalloBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) with full-state feedback control. Inherits path-planning and repulsive forces from `vehicle.TwoDBicycle`
 
-- `vehicle.ParticleBicycle`: A simple model of a bicycle as a mass-less particle (UNDER DEVELOPMENT).
+- `vehicle.ParticleBicycle`: A simple model of a bicycle as a mass-less particle.
 
 - `vehicle.PlanarBicycle`: Simple two-wheeler kinematics without wheel slip. (UNDER DEVELOPMENT)
 
@@ -70,7 +70,7 @@ Switch to the demo directroy.
 cd ./demo
 ```
 
-Run the standalone demo. Optionally set the `--save` flag to save a pdf of the potential and force plots to the `./demo/output/` folder. Set the `--use_inv_pendulum_bike` flag to use the `vehicle.InvertedPendulumBicycle` model instead of `vehicle.Bicycle`.
+Run the standalone demo. Optionally set the `--save` flag to save a pdf of the potential and force plots to the `./demo/output/` folder. Set the `--model` flag  to run the demo with different bicycle models. Refer to the file header or `--help` for a list of available models. 
 
 ```
 python demoCSFstandalone.py
