@@ -3,7 +3,7 @@
 
 Simulates three encroaching cyclists. 
 
-usage: demoCSFstandalone.py [-h] [-s] [-i]
+usage: demoCSFstandalone.py [-h] [-s] [-m]
 
 optional arguments:
   -h, --help  show this help message and exit
