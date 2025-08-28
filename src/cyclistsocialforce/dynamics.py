@@ -186,6 +186,15 @@ class WhippleCarvalloDynamics(Dynamics):
 
     The dynamics are integrated using the midpoint method. Scipy.optimize.root
     solves the non-linear equations of motion at each step.
+
+    Note: The full midpoint integration method would require the input to the 
+    dynamics (i.e. the resulting force) at time u(t+h/2). 
+    I.e. Fx(t+t/2) = Fx[n] + Fx[n+1] / 2. However, Fx[n+1] is not known at time n.
+    Including it as a state into the dynamics is not possible because it's calculation
+    requires the states of the other road users in the evironment. This would
+    effectively link the dynamics of all existing roaduser which we avoid to 
+    manage the complexity of the problem. Instead we assume 
+    u(t+h/2) = u(t) for each step and accept a small error. 
     
     Literature
     ----------
@@ -623,17 +632,20 @@ class WhippleCarvalloDynamics(Dynamics):
 
         #update gains if speed changed
         if v != self.v:
-            self.gains = self._get_gains(v)
+            self.gains = self._get_gains((v+bicycle.s[3])/2)
+        gains = self.gains.flatten()
+
+        #inputs, assuming u(t+h/2) = u(t)
+        psi_c = self._calc_commanded_yaw(Fx, Fy)
+        inputs = np.array([psi_c])
 
         #integration of lateral dynamics
-        gains = self.gains.flatten()
-        inputs = np.array([self._calc_commanded_yaw(Fx, Fy)])
 
         def residual(x_next):
-            return self.eval_lat_residual(gains, inputs, self.x, x_next, v, self.t_s).flatten()
+            return self.eval_lat_residual(gains, inputs, self.x, x_next, (v+bicycle.s[3])/2, self.t_s).flatten()
 
         def jacobian(x_next):
-            return self.eval_lat_jacobian(gains, inputs, self.x, x_next, v, self.t_s)
+            return self.eval_lat_jacobian(gains, inputs, self.x, x_next, (v+bicycle.s[3])/2, self.t_s)
         
         sol = root(residual, self.x, jac=jacobian, method='lm')
         if not sol.success:
@@ -992,15 +1004,19 @@ class ParticleDynamics(Dynamics):
         #update speed
         v = self._step_speed(vehicle, Fx, Fy)
 
-        #integration of lateral dynamics
+        #gains
         gains = self.gains.flatten()
-        inputs = np.array([self._calc_commanded_yaw(Fx, Fy)])
+
+        #inputs, assuming u(t+h/2) = u(t)
+        psi_c = self._calc_commanded_yaw(Fx, Fy)
+        inputs = np.array([psi_c])
+
 
         def residual(x_next):
-            return self.eval_lat_residual(gains, inputs, self.x, x_next, v, self.t_s).flatten()
+            return self.eval_lat_residual(gains, inputs, self.x, x_next,  (v+vehicle.s[3])/2, self.t_s).flatten()
 
         def jacobian(x_next):
-            return self.eval_lat_jacobian(gains, inputs, self.x, x_next, v, self.t_s)
+            return self.eval_lat_jacobian(gains, inputs, self.x, x_next,  (v+vehicle.s[3])/2, self.t_s)
         
         sol = root(residual, self.x, jac=jacobian, method='lm')
         if not sol.success:
