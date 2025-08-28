@@ -2055,6 +2055,10 @@ class ParticleBicycle(Vehicle):
         self.s_names += [""] * (len(s0) - len(self.s_names))
 
 
+class MPCVehicle(Vehicle):
+    pass
+
+
 class PlanarBicycle(Vehicle):
     """A bicycle with planar two-wheeler kinematics."""
 
