@@ -345,28 +345,6 @@ class WhippleCarvalloDynamics(Dynamics):
             msg = ("The BicycleParameter object neither defines desired gains nor desired poles! Make sure that"
                    "'params' has a 'gains' or a 'poles' attribute and that at least one of them is not 'None'.")
             raise RuntimeError(msg)
-
-
-    def _transform_rwpos2center(self, p_rw, psi):
-        '''Transform the position of the rear wheel to the position of the
-        bicycle center.
-        
-        The Whipplecarvallo-Model tracks the position of the rear wheel contact
-        patch to the ground. This function transforms this point to the center
-        of the bicycle. 
-
-        Parameters
-        ----------
-        p_rw : TYPE
-            DESCRIPTION.
-        psi : TYPE
-            DESCRIPTION.
-        '''
-        
-        x = self.l_rw * p_rw[0] * np.cos(psi) 
-        y = self.l_rw * p_rw[1] * np.sin(psi)
-        
-        return x, y  
         
 
     def _make_eoms_set_whipplecarvallo(self):
