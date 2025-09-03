@@ -10,6 +10,7 @@ import numpy as np
 import io
 
 from scipy.fft import fft
+from collections import deque
 
 def plot_fft(t, x):
     """
@@ -574,3 +575,40 @@ class Angle:
     
     def __float__(self):
         return self.to_euler()
+    
+
+class FIFOBuffer(deque):
+    """ A fixed-length FIFO buffer.
+    """
+
+    def __init__(self, initial_values):
+        """ Initializes a fixed-length FIFO buffer. 
+
+        Parameters
+        ----------
+        initial_values : list
+            List of values to initialize the buffer with. The length of the 
+            list determines the fixed length of the buffer.
+        """
+        super().__init__(self, maxlen=len(initial_values))
+        for v in initial_values:
+            self.append(v)
+
+    def next(self, value_in):
+        """ Add a new element to the buffer and return the oldest one.
+
+        The oldest value is dropped from the buffer.
+
+        Parameters
+        ----------
+        value_in : any
+            The next value to be added to the buffer.
+        
+        Returns
+        -------
+        value_out : any
+            The oldest value of the buffer.
+        """
+        value_out = self[0]
+        self.append(value_in)
+        return value_out

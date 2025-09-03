@@ -595,10 +595,13 @@ class Vehicle:
             )
 
     def getDestinationDistance(self):
-        """Return the distance of the ego vehicle to it's current destination."""
+        """Return the distance of the ego vehicle to it's current destination.
+        """
+        dest = self.destqueue[self.destpointer, :]
+
         return np.sqrt(
-            np.power(self.dest[0] - self.s[0], 2)
-            + np.power(self.dest[1] - self.s[1], 2)
+            np.power(dest[0] - self.s[0], 2)
+            + np.power(dest[1] - self.s[1], 2)
         )
 
     def setDestinations(self, x, y, stop=None, reset=False):
