@@ -24,9 +24,9 @@ from cyclistsocialforce.parameters import (
     VehicleParameters,
     BicycleParameters,
     PlanarBicycleParameters,
-    ParticleBicycleParameters,
+    PlanarPointBicycleParameters,
     InvPendulumBicycleParameters,
-    WhippleCarvalloBicycleParameters,
+    BalancingRiderBicycleParameters,
 )
 from cyclistsocialforce.vizualisation import (
     VehicleDrawing,
@@ -35,6 +35,7 @@ from cyclistsocialforce.vizualisation import (
 )
 
 from cyclistsocialforce.dynamics import (
+    Dynamics,
     ParticleDynamics,
     WhippleCarvalloDynamics,
     PlanarTwoWheelerDynamics,
@@ -52,6 +53,8 @@ class Vehicle:
     the selected route.
     """
 
+    DYNAMICS_TYPE = Dynamics
+    DRAWING_TYPE = VehicleDrawing
     PARAMS_TYPE = VehicleParameters
     REQUIRED_PARAMS = ("d_arrived_inter", "hfov")
 
@@ -67,11 +70,8 @@ class Vehicle:
         params=None,
         dest_force_func=None,
         rep_force_func=None,
-        dyn_step_func=None,
-        drawing_class=VehicleDrawing,
         uncontrolled=False,
         uncontrolled_traj=(),
-        dynamics=None,
     ):
         """Create a new Vehicle.
 
@@ -108,12 +108,6 @@ class Vehicle:
             VehicleParams object providing a parameter set for this vehicle.
             When no parameter object is provided, the vehicle is instantiated
             with default parameters.
-        dynamics : cyclistsocialforce.dynamics.Dynamics, optional
-            The vehicle dynamics model of this vehicle. May be unused, depending
-            on dyn_step_func. The default is None.
-        dyn_step_func : function, optional
-            Create a vehicle with a custom dynamic model by passing a
-            step function with the signature None = dyn_step_func(Vehicle, F1, F2).
         rep_force_func : function, optional
             Create a vehicle with a custom repulsive force by passing a handle
             with the signature F1, F2 = rep_force_func(Vehicle, x, y, psi),
@@ -129,9 +123,6 @@ class Vehicle:
             the resulting force (Fx and Fy or Fv and Fpsi). If it uses
             parameters, these should be taken from
             Vehicle.params.dest_force["param_name"].
-        drawing_class : cyclistsocialforce.visualization.VehicleDrawing, optional
-            The class of drawing that this vehicle is represented by in an
-            animation. The default is VehicleDrawing.
         uncontrolled : boolean, optional
             Creates an uncontrolled vehicle that follows a prediscribed
             trajectory in its traj property rather then reacting to social
@@ -187,7 +178,6 @@ class Vehicle:
 
         # has a drawing
         self.drawing = None
-        self.drawing_class = VehicleDrawing
 
         # next destination and queue of following destination
         self.dest = np.array([s0[0], s0[1], 0.0])
@@ -200,19 +190,18 @@ class Vehicle:
         # ego repulsive force
         self.F = []
 
-        # vehicle dynamics
-        self.dynamics = dynamics
-
         # destination force, repulsive force and dynamic model step functions
         self.dest_force_func = dest_force_func
         self.rep_force_func = rep_force_func
-        self.dyn_step_func = dyn_step_func
 
         # set to uncontrolled
         if uncontrolled:
             self.set_uncontrolled(uncontrolled_traj)
         else:
             self.uncontrolled = False
+
+        # dynamics
+        self.define_dynamics(self.DYNAMICS_TYPE)
 
 
     @staticmethod
@@ -232,6 +221,18 @@ class Vehicle:
         uncontrolled vehicles.
         """
         return 0, 0
+    
+    def define_dynamics(self, dynamics_type):
+        """Define the dynamics type of this vehicle.
+        Paramters
+        ---------
+        dynamics_type : cyclistsocialforce.dynamics.Dynamics
+            A Dynamics type (must be a child of Dynamics)
+        """
+
+        self.dynamics = dynamics_type(self)
+        self.dyn_step_func = self.dynamics.step
+
 
     def verify_params_class(self, kwargs):
         """Check if the params object in the keyword argument has the right
@@ -241,11 +242,9 @@ class Vehicle:
         if "params" not in kwargs.keys():
             kwargs = dict(kwargs, params=self.PARAMS_TYPE())
         else:
-            assert isinstance(kwargs["params"], self.PARAMS_TYPE), (
-                "params ",
-                "must be a {self.PARAMS_TYPE}",
-                f"object. Instead it was {type(kwargs['params'])}.",
-            )
+            if not isinstance(kwargs["params"], self.PARAMS_TYPE):
+                raise TypeError(f"Params must be a '{self.PARAMS_TYPE.__name__}' object. "
+                                f"Instead it was '{type(kwargs['params']).__name__}'.")
         return kwargs
 
     def calcRepulsiveForce(self, x, y, psi):
@@ -709,13 +708,13 @@ class Vehicle:
         """
 
         if drawing is None:
-            self.drawing = self.drawing_class(
-                ax, self, params=self.drawing_class.PARAMS_CLASS(**kwargs)
+            self.drawing = self.DRAWING_TYPE(
+                ax, self, params=self.DRAWING_TYPE.PARAMS_CLASS(**kwargs)
             )
         else:
-            assert isinstance(drawing, self.drawing_class), (
+            assert isinstance(drawing, self.DRAWING_TYPE), (
                 f"Provide a "
-                "{self.drawing_class.__name__} object! Instead "
+                "{self.DRAWING_TYPE.__name__} object! Instead "
                 "you provided a {type(drawing)}."
             )
             self.drawing = drawing
@@ -920,6 +919,7 @@ class Vehicle:
 
 class UncontrolledVehicle(Vehicle):
 
+    DRAWING_TYPE = CarDrawing2D
     PARAMS_TYPE = CarParameters
 
     def __init__(self, s0, trajectory=(), **kwargs):
@@ -957,8 +957,6 @@ class UncontrolledVehicle(Vehicle):
         if len(trajectory) > 0:
             self.traj = np.array(trajectory)
 
-        # class of drawings of this car.
-        self.drawing_class = CarDrawing2D
 
     def step(self, Fx=None, Fy=None):
         """
@@ -1016,45 +1014,27 @@ class Bicycle(Vehicle):
     N_STATES = 5
     STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]"]
 
-    def __init__(
-        self, s0, id="unknown", route=(), saveForces=False, params=None
-    ):
+    PARAMS_TYPE = BicycleParameters
+    DRAWING_TYPE = BicycleDrawing2D
+
+    def __init__(self, s0, **kwargs):
         """
 
         Parameters
         ----------
         s0 : List of float
             List containing the initial vehicle state (x, y, psi, v, delta).
-        id : str, optional
-            String for identifying this vehicle. Default = ""
-        route : list of str, optional
-            List of SUMO edge IDs describing the vehicle route. An empty list
-            deactivates route following and destinations have to be set
-            using vehicle.setDestinations(). Default = []
-        saveForces : boolean, optional
-            Save a history of the forces experienced by this vehicle.
-            Default = False
-        params : VehicleParams, optional
-            VehicleParams object providing a parameter set for this vehicle.
-            When no parameter object is provided, the vehicle is instantiated
-            with default parameters.
+        **kwargs 
+            Keyword arguments passed to Vehicle. 
         """
 
-        # set parameters if not already set by a child.
-        if params is None:
-            self.params = BicycleParameters()
-        elif params != 0:
-            assert isinstance(params, BicycleParameters)
-            self.params = params
+        # parameters
+        kwargs = self.verify_params_class(kwargs)
 
         # call super
-        Vehicle.__init__(self, s0, id, route, saveForces, 0)
+        Vehicle.__init__(self, s0, **kwargs)
 
         self.updateExcentricity()
-
-        # has a drawing of a bicycle
-        # self.hasDrawings = [False] * 8
-        self.drawing_class = BicycleDrawing2D
 
         self.destspline = None
 
@@ -1970,10 +1950,12 @@ class InvPendulumBicycle(TwoDBicycle):
         self.zrid[1] = not self.zrid[0]
 
 
-class WhippleCarvalloBicycle(Vehicle):
+class BalancingRiderBicycle(Vehicle):
     """A bicycle with Whipple Carvallo Dynamics."""
 
-    PARAMS_TYPE = WhippleCarvalloBicycleParameters
+    DYNAMICS_TYPE = Dynamics
+    PARAMS_TYPE = BalancingRiderBicycleParameters
+    DRAWING_TYPE = BicycleDrawing2D
     N_STATES = 8
     STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "phi[rad]", "deltadot[rad/s]", "phidot[rad/s]"]
 
@@ -2009,13 +1991,12 @@ class WhippleCarvalloBicycle(Vehicle):
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
 
-        # init drawing
-        self.drawing_class = BicycleDrawing2D
 
+class PlanarPointBicycle(Vehicle):
 
-class ParticleBicycle(Vehicle):
-
-    PARAMS_TYPE = ParticleBicycleParameters
+    DYNAMICS_TYPE = ParticleDynamics
+    PARAMS_TYPE = PlanarPointBicycleParameters
+    DRAWING_TYPE = BicycleDrawing2D
 
     """ A bicycle with particle dynamics. 
     """
@@ -2051,20 +2032,15 @@ class ParticleBicycle(Vehicle):
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
 
-        # init drawing
-        self.drawing_class = BicycleDrawing2D
-
         # state names
         self.s_names += [""] * (len(s0) - len(self.s_names))
-
-
-class MPCVehicle(Vehicle):
-    pass
 
 
 class PlanarBicycle(Vehicle):
     """A bicycle with planar two-wheeler kinematics."""
 
+    DYNAMICS_TYPE = PlanarTwoWheelerDynamics
+    DRAWING_TYPE = BicycleDrawing2D
     PARAMS_TYPE = PlanarBicycleParameters
     N_STATES = 5
     STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]"]
@@ -2101,17 +2077,12 @@ class PlanarBicycle(Vehicle):
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
 
-        # init drawing
-        self.drawing_class = BicycleDrawing2D
-
         # state names
         self.s_names += ["delta[deg]"]
         self.s_names += [""] * (len(s0) - len(self.s_names))
 
 
 ### Collection of Destination force functions
-
-
 def calc_direct_approach_dest_force(Vehicle):
     """Calculates force vectors from locations in x, y to the current
     destination.

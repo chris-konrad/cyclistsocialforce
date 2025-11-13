@@ -1168,7 +1168,7 @@ class BicycleParameters(VehicleParameters):
             )
         self._k_p_delta = k_p_delta
         
-class ParticleBicycleParameters(BicycleParameters):
+class PlanarPointBicycleParameters(BicycleParameters):
     
     FIXED_POLES = 0+0j #must have a double pole at FIXED_POLES
     N_POLES = 4
@@ -1191,7 +1191,7 @@ class ParticleBicycleParameters(BicycleParameters):
         if not isinstance(poles, (list, tuple, np.ndarray)):
             poles = np.array(poles)
         if len(poles) != 1 or np.imag(poles[0]) != 0:
-            msg = "ParticleBicycleParameters must have one real pole! Instead" \
+            msg = "PlanarPointBicycleParameters must have one real pole! Instead" \
                   f"you provided {len(poles)} poles = {poles}"
             ValueError(msg)
         self._poles = [poles[0]]
@@ -1207,7 +1207,7 @@ class PlanarBicycleParameters(BicycleParameters):
         self.poles = poles    
 
         
-class WhippleCarvalloBicycleParameters(BicycleParameters):
+class BalancingRiderBicycleParameters(BicycleParameters):
     
     def __init__(self, 
                  bicycleParameterDict = meijaard2007_browser_jason, 
