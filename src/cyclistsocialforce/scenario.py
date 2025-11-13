@@ -154,7 +154,7 @@ class Scenario:
                 fname = os.path.join(out_dir, self.fname_animation_out + '_f' + f'{self.i-1}'.zfill(n_zero_pad)+'.png')
                 
                 if self.i%2:
-                    self.fig.savefig(fname, transparent=True)
+                    self.fig.savefig(fname, transparent=True, dpi=300)
                 
             self._assemble_animation_video(out_dir)
 
