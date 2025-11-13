@@ -54,12 +54,91 @@ class PIDcontroller:
         return out
 
 class Dynamics:
+    """ The default vehicle dynamics. Directly integrates the motion indicated by the given social force.
+    """
 
-    def __init__(self, Vehicle):
-        self.x = Vehicle.s
+    def __init__(self, vehicle):
+        self.t_s = vehicle.params.t_s
+        self.x = vehicle.s[:2]
+        self.eval_lat_residual, self.eval_lat_jacobian = self._get_midpoint_moment_evaluators()
 
-    def step(self, Vehicle, F1, F2):
-        pass
+
+    def step(self, vehicle, F1, F2):    
+        #inputs, assuming u(t+h/2) = u(t)
+        v = np.sqrt(F1**2 + F2**2)
+        psi = self._calc_commanded_yaw(F1, F2)
+        inputs = np.array([psi])
+
+        #no params
+        params = np.array([])
+
+        def residual(x_next):
+            return self.eval_lat_residual(params, inputs, self.x, x_next,  (v+vehicle.s[3])/2, self.t_s).flatten()
+
+        def jacobian(x_next):
+            return self.eval_lat_jacobian(params, inputs, self.x, x_next,  (v+vehicle.s[3])/2, self.t_s)
+        
+        sol = root(residual, self.x, jac=jacobian, method='lm')
+        if not sol.success:
+            raise RuntimeError(f"Failed to solve dynamics of agent {vehicle.id} in step {vehicle.i}! scipy.optimize.root exited with '{sol.message}'")
+
+        # update state
+        self.x = sol.x
+
+        # update bicycle state
+        vehicle.s = np.array([self.x[0], self.x[1], psi, v])
+
+    def _make_eom_set(self):
+        psi, v = sm.symbols("psi, v")
+        inputs = [psi]
+
+        # ids of position and orientation states
+        pos_state_ids = np.array([1,2])
+        psi_state_id = 0
+
+        # states and parameters
+        state_names = ["p_x", "p_y"]
+        states = [sm.Symbol(s) for s in state_names]
+        params = []
+
+        # forward motion eoms 
+        f= sm.Matrix([[v * sm.cos(psi)],   #v * cos(psi)
+                      [v * sm.sin(psi)]])  #v * sin(psi)
+        
+        return f, states, params, inputs, v
+    
+        
+    def _calc_commanded_yaw(self, Fx, Fy):
+        """ Calculate the commanded yaw angle from the social forces.
+        """
+        psi = limitAngle(np.arctan2(Fy, Fx))
+
+        #psi = self.x[0]
+        #delta_psi = angleDifference(psi, psi_F) 
+        #psi_c = psi + delta_psi
+
+        return psi
+
+
+    def _get_midpoint_moment_evaluators(self):
+
+        f, states, params, inputs, v = self._make_eom_set()
+
+        x = sm.Matrix([sm.Symbol(f"{s.name}_n") for s in states])
+        x_next = sm.Matrix([sm.Symbol(f"{s.name}_(n+1)") for s in states])
+
+        x_repl = dict(zip(states, (x+x_next)/2))
+
+        h = sm.symbols("h")
+
+        # Residual R of the implicit midpoint method and it's jacobian.
+        R = x_next - x - h * f.subs(x_repl)
+        J = R.jacobian(x_next)
+
+        eval_residual = sm.lambdify((params, inputs, x, x_next, v, h), R)
+        eval_jacobian = sm.lambdify((params, inputs, x, x_next, v, h), J)
+
+        return eval_residual, eval_jacobian
 
 
 class PPointSpeedDynamics(Dynamics):
@@ -178,7 +257,7 @@ class PlanarTwoWheelerDynamics(Dynamics):
         bicycle.s[1] = y
 
 
-class WhippleCarvalloDynamics(Dynamics):
+class BalancingRiderDynamics(Dynamics):
     """ Implementing the dynamics of a Bicycle using the linearized
     Whipple-Carvallo model (Meijaard et al., 2027) and Jason Moore's bicycle
     parameters toolbox (https://bicycleparameters.readthedocs.io/en/latest/)
@@ -637,7 +716,7 @@ class WhippleCarvalloDynamics(Dynamics):
         bicycle.s = self._transform_state_dynamics2csf(self.x, self.v)
         
 
-class HessBikeRiderDynamics(WhippleCarvalloDynamics):
+class HessBikeRiderDynamics(BalancingRiderDynamics):
     """ Implementing the dynamics of a Bicycle using the linearized
     Whipple-Carvallo model (Meijaard et al., 2027) and Jason Moore's bicycle
     parameters toolbox (https://bicycleparameters.readthedocs.io/en/latest/)
@@ -660,7 +739,7 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
     """
 
     def __init__(self, Bicycle):
-        WhippleCarvalloDynamics.__init__(self, Bicycle)
+        BalancingRiderDynamics.__init__(self, Bicycle)
 
         # save initial state x0 = (psi, delta, phi, ddelta, dphi, Tdelta, dTdelta)
         self.x = np.r_[self.x, np.zeros(2)]
@@ -715,7 +794,7 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
         D = np.zeros((C.shape[0], B.shape[1]))
 
         # Add the open-loop whipple model
-        Awc, Bwc, Cwc, Dwc = WhippleCarvalloDynamics.get_statespace_matrices(
+        Awc, Bwc, Cwc, Dwc = BalancingRiderDynamics.get_statespace_matrices(
             self, v
         )
 
@@ -731,7 +810,7 @@ class HessBikeRiderDynamics(WhippleCarvalloDynamics):
         self.sys = ct.StateSpace(A, B, C, D)
 
 
-class ParticleDynamics(Dynamics):
+class PlanarPointDynamics(Dynamics):
     """ A class for modelling the dynamics of a bicycle as a mass-less 
     particle in planar space"""
 
@@ -923,24 +1002,6 @@ class ParticleDynamics(Dynamics):
         ])
 
         return state_dyn, state_csf[3]
-    
-    
-    def _calc_commanded_yaw(self, Fx, Fy):
-        """ Calculate the commanded yaw angle from the social forces.
-
-        The yaw angle is normally represented in [-np.pi, pi]. To make sure that the
-        correct rotation is chosen to compensate the commanded yaw, the commanded
-        angle needs to be augmented to the interval [psi-np.pi, psi+pi].
-
-        """
-        psi_F = limitAngle(np.arctan2(Fy, Fx))
-
-        psi = self.x[0]
-        delta_psi = angleDifference(psi, psi_F) 
-
-        psi_c = psi + delta_psi
-
-        return psi_c
 
 
     def _step_speed(self, vehicle, Fx, Fy):
