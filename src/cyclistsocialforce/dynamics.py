@@ -97,8 +97,9 @@ class Dynamics:
         psi_state_id = 0
 
         # states and parameters
-        state_names = ["p_x", "p_y"]
-        states = [sm.Symbol(s) for s in state_names]
+        self.state_names = ["p_x", "p_y"]
+        self.param_names = []
+        states = [sm.Symbol(s) for s in self.state_names]
         params = []
 
         # forward motion eoms 
@@ -459,8 +460,8 @@ class BalancingRiderDynamics(Dynamics):
         psi_c, v = sm.symbols("psi_c, v")
         
         # state symbols
-        state_names = ["phi", "delta", "phidot", "deltadot", "psi", "p_x", "p_y"]
-        param_names = ["k_phi", "k_delta", "k_phidot", "k_deltadot", "k_psi"]
+        self.state_names = ["phi", "delta", "phidot", "deltadot", "psi", "p_x", "p_y"]
+        self.param_names = ["k_phi", "k_delta", "k_phidot", "k_deltadot", "k_psi"]
 
         # ids of position and orientation states
         pos_state_ids = np.array([5,6])
@@ -470,8 +471,8 @@ class BalancingRiderDynamics(Dynamics):
         Ku_param_ids = np.array([4])
 
         inputs = [psi_c]
-        states = [sm.Symbol(s) for s in state_names]
-        params = [sm.Symbol(p) for p in param_names]
+        states = [sm.Symbol(s) for s in self.state_names]
+        params = [sm.Symbol(p) for p in self.param_names]
 
         # bike-rider states
         x_br = sm.Matrix([[states[j]] for j in bikerider_state_ids])
@@ -900,11 +901,11 @@ class PlanarPointDynamics(Dynamics):
         psi_state_id = 0
 
         # states and parameters
-        state_names = ["psi", "p_x", "p_y"]
-        param_names = ["k_psi"]
+        self.state_names = ["psi", "p_x", "p_y"]
+        self.param_names = ["k_psi"]
 
-        states = [sm.Symbol(s) for s in state_names]
-        params = [sm.Symbol(p) for p in param_names]
+        states = [sm.Symbol(s) for s in self.state_names]
+        params = [sm.Symbol(p) for p in self.param_names]
     
         # eoms
         f_psi = sm.Matrix(
@@ -1036,6 +1037,27 @@ class PlanarPointDynamics(Dynamics):
         v = thresh(self.v + self.t_s * a, self.v_max)
 
         return v
+
+    def get_statespace_matrices(self, v):
+        """
+        xdot = A*x + B*u
+        
+        with 
+        
+        x = [psi]^T
+        u = [psi_c]
+
+        """
+
+        # add yaw dynamics
+        A = np.ones((1, 1))
+        B = np.ones((1, 1))
+
+        # output
+        C = np.ones((1, 1))
+        D = np.zeros((C.shape[0], B.shape[1]))
+
+        return A, B, C, D
 
 
     def step(self, vehicle, Fx, Fy):
