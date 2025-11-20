@@ -2,13 +2,57 @@
 """
 Created on Wed Apr 19 16:49:49 2023.
 
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import io
 
+from scipy.fft import fft
+from collections import deque
 
+def plot_fft(t, x):
+    """
+    Plots the fft of a time-discrete signal x
+
+    Parameters
+    ----------
+    t : array-like or float
+        If an array, t is interpreted as the time samples of the datapoints in 
+        x. If a float, t is interpreted as the sample time T_s
+    x : array-like
+        Array of N data points sampled at times t. Must be equally spaced!
+
+    Returns
+    -------
+    ax : axes
+        Axes of the plot.
+    """
+    
+    n = len(x)
+    
+    if isinstance(t,float):
+        t_s=t
+        t = np.arange(0, n * t_s, t_s)
+    else:
+        t_s = t[1]-t[0]
+        
+    X = fft(x, norm='forward') #scales the output by 1/n
+    
+    F = np.arange(0, 1/t_s, 1/(n*t_s))
+    
+    #plot
+    fig, ax = plt.subplots(2,1)
+    ax[0].plot(t, x)
+    ax[0].set_xlabel('t [s]')
+    ax[1].plot(F[:int(n/2)], np.abs(X[:int(n/2)]))
+    ax[1].set_xlabel('f [Hz]')
+    ax[1].set_yscale('log')
+    
+    return ax
+
+    
 def limitMagnitude(x, y, r):
     """Limit the magnitude of a set of vectors to a given maximum
 
@@ -54,11 +98,11 @@ def figToImg(fig):
     return data.reshape((int(h), int(w), -1))
 
 
-def toDeg(rad):
+def to_deg(rad):
     return 360 * rad / (2 * np.pi)
 
 
-def toRad(deg):
+def to_rad(deg):
     return 2 * np.pi * deg / (360)
 
 
@@ -69,12 +113,12 @@ def clearAxes(ax):
 
 def angleSUMOtoSFM(theta):
     """Convert angle between SUMO definition and SFM definition"""
-    return limitAngle((np.pi / 2) - toRad(theta))
+    return limitAngle((np.pi / 2) - to_rad(theta))
 
 
 def angleSFMtoSUMO(theta):
     """Convert angle between SUMO definition and SFM definition"""
-    return toDeg(expandAngle((np.pi / 2) - theta))
+    return to_deg(expandAngle((np.pi / 2) - theta))
 
 
 def limitAngle(theta):
@@ -141,10 +185,10 @@ def angleDifference(a1, a2):
 def cart2polar(x, y):
     rho = np.sqrt(np.power(x, 2) + np.power(y, 2))
 
-    # phi = np.arccos(x/rho)
-    # phi[y<0] = (2*np.pi) - phi[y<0]
-
     phi = np.arccos(x / rho)
+    if type(phi) is not np.ndarray:
+        phi = np.array(phi)
+
     phi[y < 0] = -phi[y < 0]
 
     return rho, phi
@@ -158,11 +202,91 @@ def polar2cart(rho, phi):
 
 
 def thresh(x, minmax):
-    if x < minmax[0]:
-        x = minmax[0]
-    elif x > minmax[1]:
-        x = minmax[1]
-    return x
+    """Threshold the values in x to the limits minmax.
+
+    x_out will be in [minmax[0], minmax[1]]
+
+    Parameters
+    ----------
+    x : array-like
+        Data to be thresholded.
+    minmax : array-like
+        Thresholds, wherew minmax[0] is the minimum threshold and minmax[1] the
+        maximum.
+
+    Returns
+    -------
+    x_out : array-like
+        Thresholded data in [minmax[0], minmax[1]].
+
+    """
+
+    assert (
+        minmax[0] <= minmax[1]
+    ), f"Minimum must be smaller then the maximum! Instead it was [{minmax[0]}, {minmax[1]}]"
+    return np.maximum(np.minimum(x, minmax[1]), minmax[0])
+
+
+def validate_boolean_indicators(features, indicator_name, data_name, n_features):
+    """
+    Validate a boolean inicator input. This checks if features is either an
+    array-like of booleans with the length n_features or an array-like of
+    integers within the range [0, n_features]. 
+    
+    Use this for checking if a selector/indicator is compatible with the 
+    data it is used to select from. 
+
+    Parameters
+    ----------
+    features : array-like
+        Indicator array.
+    indicator_name : str
+        Name of the validated boolan indicator.
+        Used to create appropriate error messages.
+    data_name : str
+        Name of the data/varibale that this boolean selector is used on.
+        Used to create appropriate error messages.
+    n_features : int
+        Number of selection possibilities that this selector is used on.
+
+    Raises
+    ------
+    ValueError
+        Raised if features doesn't satisfy the requirements to an indicator 
+        array-like.
+
+    Returns
+    -------
+    bool_features : np.ndarray
+        The validated indicator as an array of bools with the length 
+        n_features.
+
+    """
+    
+    features = np.array(features)
+    msg = (f"Boolean indicator array-like '{indicator_name}' must be either",
+           f" an array of bool with {n_features} elements or an array of int ",
+           f"in [0, {n_features}]. Instead it was an array of ",
+           f"{features.dtype}.")
+
+    if (features.dtype == bool):
+        if (len(features) == n_features):
+            return features
+        else:
+            msg = (f"Boolean indicator array-like '{indicator_name}' must ",
+                   f"have the same number of elements as {data_name} has ",
+                   f"features ({n_features}). Instead it was {len(features)}.")
+        
+    if features.dtype == int: 
+        if np.all(0 < features < n_features):
+            bool_features = [i in features for i in range(n_features)]
+            return bool_features
+        else: 
+            msg = (f"Integer indices for {indicator_name} must be in [0, ",
+                   f"{n_features}]. Instead it was in [",
+                   f"{np.amin(features)}, {np.amax(features)}].")
+             
+    raise ValueError(msg)
 
 
 class DiffEquation:
@@ -172,7 +296,7 @@ class DiffEquation:
 
     y(k) = (1/a0)*(b0*u(k)+b1*u(k-1)+...+bn*u(k-n)-a1*y(k-1)-...-am*y(k-m))
 
-    Created by Christoph Schmidt
+    Created by Christoph Konrad
     """
 
     def __init__(self, ab, y=None, u=None, th=None):
@@ -312,3 +436,179 @@ class DiffEquation:
             self.a0inv = 1 / ab[0][0]
         if ab[1] is not None:
             self.b = ab[1]
+
+
+# -----------------------------------------------------------------------------
+
+class Angle:
+    """
+    Describe planar orientations (e.g. in 2D) and angles with a complex number. 
+    Concept borrowed from quaternions for 3D orientations. 
+    """
+    def __init__(self, complex_unitvec):
+        """
+        Create an Angle object.
+
+        Parameters
+        ----------
+        complex_unitvec : complex
+            Complex number representing an angle as cos(angle) + j sin (angle).
+        """
+        #assert np.abs(complex_unitvec) == 1, ("The norm of the complex angle",
+        #    f"must be 1! Instead it was |{complex_unitvec}| = ",
+        #    f"{np.abs(complex_unitvec)}.")
+        
+        self._complex_unitvec = complex_unitvec
+    
+    def from_euler_array(euler_array, deg=False):
+        
+        shape = euler_array.shape
+        angle_array = np.empty(euler_array.shape, dtype=Angle).flatten()
+        
+        euler_flat = euler_array.flatten()
+        for i in range(len(euler_flat)):
+            angle_array[i] = Angle.from_euler(euler_flat[i], deg=deg)
+            
+        return np.reshape(angle_array, shape)
+        
+
+    def from_euler(angle, deg=False):
+        """
+        Create an Angle object from a given Euler angle.
+
+        Parameters
+        ----------
+        angle : float
+            Euler angle in rad (deg=False) or deg (deg=True).
+        deg : boolean, optional
+            If True, the Euler angle is interpreted in deg. 
+            The default is False.
+
+        Returns
+        -------
+        cyclistsocialforce.utils.Angle
+            The Angle object.
+        """
+        
+        if deg:
+            angle = np.deg2rad(angle)
+            return Angle(np.cos(angle) + 1j * np.sin(angle))
+        else:
+            return Angle(np.cos(angle) + 1j * np.sin(angle))
+
+    def to_euler(self, deg=False):
+        """
+        Return the Euler angle of this Angle object. 
+
+        Parameters
+        ----------
+        deg : boolean, optional
+            If True, the Euler angle is expressed in deg. The default is False.
+
+        Returns
+        -------
+        float
+            Euler angle in rad (deg=False) or deg (deg=True).
+
+        """
+        return np.angle(self._complex_unitvec, deg=deg)
+    
+    def __abs__(self):
+        return Angle(self._complex_unitvec.real + 1j * abs(self._complex_unitvec.imag))
+
+    def __add__(self, other):
+        assert isinstance(other, Angle)
+        x = self._complex_unitvec * other._complex_unitvec
+        return Angle(x)
+
+    def __sub__(self, other):
+        assert isinstance(other, Angle)
+        x = self._complex_unitvec / other._complex_unitvec
+        return Angle(x)
+
+    def __mul__(self, other):
+        assert isinstance(other, (int, float))
+        x = self._complex_unitvec**other
+        return Angle(x)
+
+    def __div__(self, other):
+        assert isinstance(other, (int, float))
+        x = self._complex_unitvec ** (1 / other)
+        return Angle(x)
+
+    def __eq__(self, other):
+        return self._complex_unitvec == other._complex_unitvec
+
+    def __lt__(self, other):
+        return self.to_euler() < other.to_euler()
+
+    def __gt__(self, other):
+        return self.to_euler() > other.to_euler()
+
+    def __leq__(self, other):
+        return self.to_euler() <= other.to_euler()
+
+    def __geq__(self, other):
+        return self.to_euler() >= other.to_euler()
+
+    def __max__(self, other):
+        assert isinstance(other, Angle)
+
+        if self >= other:
+            return Angle(self._complex_unitvec)
+        else:
+            return Angle(other._complex_unitvec)
+
+    def __min__(self, other):
+        assert isinstance(other, Angle)
+
+        if self <= other:
+            return Angle(self._complex_unitvec)
+        else:
+            return Angle(other._complex_unitvec)
+
+    def __str__(self):
+        return str(self.to_euler(deg=True))
+        
+    def __repr__(self):
+        return str(self)
+    
+    def __float__(self):
+        return self.to_euler()
+    
+
+class FIFOBuffer(deque):
+    """ A fixed-length FIFO buffer.
+    """
+
+    def __init__(self, initial_values):
+        """ Initializes a fixed-length FIFO buffer. 
+
+        Parameters
+        ----------
+        initial_values : list
+            List of values to initialize the buffer with. The length of the 
+            list determines the fixed length of the buffer.
+        """
+        super().__init__(self, maxlen=len(initial_values))
+        for v in initial_values:
+            self.append(v)
+
+    def next(self, value_in):
+        """ Add a new element to the buffer and return the oldest one.
+
+        The oldest value is dropped from the buffer.
+
+        Parameters
+        ----------
+        value_in : any
+            The next value to be added to the buffer.
+        
+        Returns
+        -------
+        value_out : any
+            The oldest value of the buffer.
+        """
+        value_out = self[0]
+        self.append(value_in)
+        return value_out

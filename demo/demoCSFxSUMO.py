@@ -12,7 +12,7 @@ This script:
 
 To run, execute this script and then hit play in the SUMO GUI.
 
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 
 import os
@@ -31,7 +31,7 @@ else:
     import traci
 import sumolib
 
-from cyclistsocialforce.scenario import Scenario
+from cyclistsocialforce.scenario import SUMOScenario
 
 import matplotlib.pyplot as plt
 
@@ -71,16 +71,16 @@ def generateRoutes():
             file=routefile,
         )
 
-        vid = 0
+        id = 0
         for i in range(t):
             for j in range(r):
                 if demand[i, j]:
                     print(
                         '    <vehicle id="b%i" type="bike" route="r%i" '
-                        'depart="%i" />' % (vid, j, i),
+                        'depart="%i" />' % (id, j, i),
                         file=routefile,
                     )
-                vid += 1
+                id += 1
 
         print("</routes>", file=routefile)
 
@@ -118,12 +118,16 @@ def main():
         sumoBinary = sumolib.checkBinary("sumo-gui")
 
     generateRoutes()
+    
+    # bicycle drawing styles
+    bicycle_drawing_kwargs = {"traj_line_width": 5}
 
     # set animate=True to show an animation of CSFM parallel to SUMO
-    demo = Scenario(
+    demo = SUMOScenario(
         os.path.join(".", "config", "demoCSFxSUMO.net.xml"),
         bicycle_type="Bicycle",
         animate=True,
+        bicycle_drawing_kwargs = bicycle_drawing_kwargs,
     )
 
     # use TraCI to execute SUMO with a time resultion of 0.01 s

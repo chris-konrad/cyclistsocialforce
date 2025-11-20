@@ -100,3 +100,6 @@ target/
 
 # IPython NB Checkpoints
 .ipynb_checkpoints/
+
+# VSCode
+.vscode

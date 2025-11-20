@@ -2,20 +2,426 @@
 """
 Created on Tue Sep 26 12:16:53 2023.
 
-Classes managing vehicle parameter sets. 
+Classes managing the parameter sets of the model and the visualisation.
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 import numpy as np
 import control as ct
+import warnings
+
+from cyclistsocialforce.utils import thresh
+from pypaperutils.design import TUDcolors
+
+from bicycleparameters.parameter_dicts import meijaard2007_browser_jason
+from bicycleparameters.parameter_sets import Meijaard2007ParameterSet
+from bicycleparameters.models import Meijaard2007Model
+
+
+class VehicleDrawingParameters:
+    """Class storing and maintaining the parameters for a vehicle drawing.
+
+    Parameters include colors,
+    To be used together with cyclistsocialforce.visualisation.Vehicle
+    """
+
+    def __init__(
+        self,
+        animated=False,
+        draw_force_resulting=True,
+        draw_force_destination=True,
+        draw_forces_repulsive=True,
+        draw_trajectory=True,
+        draw_nextdest=False,
+        draw_destqueue=True,
+        draw_pastdest=True,
+        draw_name=True,
+        force_color_dest=None,
+        force_color_rep=None,
+        force_color_res=None,
+        force_head_width=None,
+        force_head_length=None,
+        force_linewidth=None,
+        dest_marker_color_cur=None,
+        dest_marker_color_qeu=None,
+        traj_line_width=None,
+        traj_line_color=None,
+        name_font_size=None,
+        name_font_color=None,
+    ):
+        self.draw_force_resulting = draw_force_resulting
+        self.draw_force_destination = draw_force_destination
+        self.draw_forces_repulsive = draw_forces_repulsive
+        self.draw_trajectory = draw_trajectory
+        self.draw_nextdest = draw_nextdest
+        self.draw_destqueue = draw_destqueue
+        self.draw_pastdest = draw_pastdest
+        self.draw_name = draw_name
+        self.animated = animated
+
+        self.tud_colors = TUDcolors()
+
+        self.init_forcearrow_style(
+            force_color_dest, force_color_rep, force_color_res, force_head_width, force_head_length,
+            force_linewidth
+        )
+        
+        self.init_destmarker_colors(dest_marker_color_cur, 
+                                    dest_marker_color_qeu)
+        
+        self.init_trajectory_style(traj_line_width, traj_line_color)
+        
+        self.init_name_style(name_font_size, name_font_color)
+        
+    def init_name_style(self, name_font_size=None, name_font_color=None):
+        
+        if name_font_size is None:
+            name_font_size = 8
+        if name_font_color is None:
+            name_font_color = "black"
+
+        self.name_font_size = name_font_size
+        self.name_font_color = name_font_color
+        
+    def init_trajectory_style(
+        self, traj_line_width=None, traj_line_color=None
+        ):
+        
+        if traj_line_width is None:
+            traj_line_width = 1
+        if traj_line_color is None:
+            traj_line_color = self.tud_colors.get("cyaan")
+
+        self.traj_line_width = traj_line_width
+        self.traj_line_color = traj_line_color
+        
+    def init_destmarker_colors(
+        self, dest_marker_color_cur=None, dest_marker_color_qeu=None
+    ):
+        """Initializes the marker colors of the destination markers.
+        
+
+        Parameters
+        ----------
+        dest_marker_color_cur : color, optional
+            The default is gray.
+        dest_marker_color_qeu : color, optional
+            The default is gray.
+
+        Returns
+        -------
+        None.
+
+        """
+        if dest_marker_color_cur is None:
+            dest_marker_color_cur = "gray"
+        if dest_marker_color_qeu is None:
+            dest_marker_color_qeu = "gray"
+
+        self.dest_marker_color_cur = dest_marker_color_cur
+        self.dest_marker_color_qeu = dest_marker_color_qeu
+
+    def init_forcearrow_style(
+        self, force_color_dest=None, force_color_rep=None, force_color_res=None,
+        force_head_width=None, force_head_length=None, force_linewidth=None
+    ):
+        """Initializes the face and edge colors for the force arrows.
+
+        Parameters
+        ----------
+        force_color_dest : color, optional
+            The default is gray.
+        force_color_rep : color, optional
+            The default is gray.
+        force_color_res : color, optional
+            The default is something dark.
+        force_head_width : float, optional
+            The default is 0.4
+        force_head_length : float, optional
+            The default is 0.4
+        force_linewidth : float, optional
+            The default is 1.0
+        
+
+        Returns
+        -------
+        None.
+
+        """
+        if force_color_dest is None:
+            force_color_dest = "gray"
+        if force_color_rep is None:
+            force_color_rep = "gray"
+        if force_color_res is None:
+            force_color_res = (12.0 / 255, 35.0 / 255, 64.0 / 255)
+        if force_head_width is None:
+            force_head_width = 0.3
+        if force_head_length is None:
+            force_head_length = 0.4
+        if force_linewidth is None:
+            force_linewidth = 1.0           
+
+        self.force_color_dest = force_color_dest
+        self.force_color_rep = force_color_rep
+        self.force_color_res = force_color_res
+        self.force_head_length = force_head_length
+        self.force_head_width = force_head_width
+        self.force_linewidth = force_linewidth
+
+    def get_draw_forces(self):
+        return (
+            self.draw_forces_destination
+            or self.draw_forces_repulsive
+            or self.draw_forces_resulting
+        )
+
+
+class BikeDrawing2DParameters(VehicleDrawingParameters):
+    """Class storing and maintaining the parameters for a bicycle drawing.
+
+    Parameters include colors,
+    To be used together with cyclistsocialforce.visualisation.BicycleDrawing2D
+
+    """
+
+    def __init__(
+        self,
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+        roll_indicator_color_edge=None,
+        roll_indicator_color_bg=None,
+        roll_indicator_color_marker=None,
+        draw_roll_indicator=True,
+        proj_3d=False,
+        **kwargs,
+    ):
+        """Create a bicycle drawing parameters object.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+        roll_indicator_color_edge : color, optional
+            The default is black,
+        roll_indicator_color_bg : color, optional
+            The default is None (transparent).
+        roll_indicator_color_marker : color, optional
+            The default is red.
+        draw_roll_indicator : boolean, optional
+            Adds the roll indicator colors to the color lists.
+            The default is True.
+        proj3d : TYPE, optional
+            Prepares color lists for the 3D drawing instead of 2D.
+            The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
+        super().__init__(**kwargs)
+
+        self.proj_3d = proj_3d
+        self.draw_roll_indicator = draw_roll_indicator
+
+        self.init_riderbike_colors(
+            bike_color_frame,
+            bike_color_wheels,
+            rider_color_body,
+            rider_color_head,
+            roll_indicator_color_edge,
+            roll_indicator_color_bg,
+            roll_indicator_color_marker,
+        )
+        self.make_colorlists_riderbike()
+
+    def init_riderbike_colors(
+        self,
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+        roll_indicator_color_edge=None,
+        roll_indicator_color_bg=None,
+        roll_indicator_color_marker=None,
+    ):
+        """Initializes the face and edge colors for the bike-rider polygon
+        including the roll indicator.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+        roll_indicator_color_edge : color, optional
+            The default is black,
+        roll_indicator_color_bg : color, optional
+            The default is None (transparent).
+        roll_indicator_color_marker : color, optional
+            The default is red.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        if bike_color_frame is None:
+            bike_color_frame = self.tud_colors.get("cyaan")
+        if bike_color_wheels is None:
+            bike_color_wheels = "gray"
+
+        if rider_color_body is None:
+            rider_color_body = self.tud_colors.get(
+                np.random.randint(0, len(self.tud_colors.colors))
+            )
+        elif isinstance(rider_color_body, list):
+            rider_color_body = rider_color_body[
+                np.random.randint(0, len(rider_color_body))
+            ]
+
+        if rider_color_head is None:
+            rider_color_head = self.tud_colors.get("cyaan")
+
+        if roll_indicator_color_edge is None:
+            roll_indicator_color_edge = "black"
+        if roll_indicator_color_bg is None:
+            roll_indicator_color_bg = "none"
+        if roll_indicator_color_marker is None:
+            roll_indicator_color_marker = self.tud_colors.get("rood")
+
+        self.bike_color_frame = bike_color_frame
+        self.bike_color_wheels = bike_color_wheels
+        self.rider_color_body = rider_color_body
+        self.rider_color_head = rider_color_head
+        self.roll_indicator_color_edge = roll_indicator_color_edge
+        self.roll_indicator_color_bg = roll_indicator_color_bg
+        self.roll_indicator_color_marker = roll_indicator_color_marker
+
+    def make_colorlists_riderbike(self):
+        """Create the list of colors for the rider+bike polygons.
+
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.fcolors_riderbike = [
+            self.bike_color_wheels,
+            self.bike_color_wheels,
+            self.bike_color_frame,
+            self.bike_color_frame,
+            self.rider_color_body,
+            self.rider_color_body,
+            self.rider_color_body,
+            self.rider_color_head,
+        ]
+
+        self.ecolors_riderbike = ["none"] * 8
+
+        if self.draw_roll_indicator:
+            if self.proj_3d:
+                self.fcolors_riderbike += [
+                    self.roll_indicator_color_edge,
+                ]
+                self.ecolors_riderbike += [
+                    "none",
+                ]
+            else:
+                self.fcolors_riderbike += [
+                    self.roll_indicator_color_bg,
+                    self.roll_indicator_color_marker,
+                ]
+                self.ecolors_riderbike += [
+                    self.roll_indicator_color_edge,
+                    "none",
+                ]
+
+
+class RoadElementParameters:
+    def __init__(
+        self,
+        roadsurface_color=(0.8, 0.8, 0.8),
+        roadedge_color="white",
+        roadedge_linewidth=1,
+        F_0=0.05,
+        sigma=3.0,
+    ):
+        self.roadsurface_color = roadsurface_color
+
+        self.roadedge_color = roadedge_color
+        self.roadedge_linewidth = roadedge_linewidth
+
+        self.F_0 = F_0
+        self.sigma = sigma
+
+    @property
+    def F_0(self) -> float:
+        return self._F_0
+
+    @F_0.setter
+    def F_0(self, F_0) -> None:
+        if hasattr(self, "_F_0"):
+            raise AttributeError("F_0 is immutable.")
+        if not isinstance(F_0, float):
+            msg = "F_0 must be a float."
+            raise TypeError(msg)
+        if not F_0 >= 0:
+            raise ValueError(
+                f"F_0 must be >=0, instead it was \
+                             {F_0:.2f}"
+            )
+        self._F_0 = F_0
+
+    @property
+    def sigma(self) -> float:
+        return self._sigma
+
+    @sigma.setter
+    def sigma(self, sigma) -> None:
+        if hasattr(self, "_sigma"):
+            raise AttributeError("sigma is immutable.")
+        if not isinstance(sigma, float):
+            msg = "sigma must be a float."
+            raise TypeError(msg)
+        if not sigma >= 0:
+            raise ValueError(
+                f"sigma must be >=0, instead it was \
+                             {sigma:.2f}"
+            )
+        self._sigma = sigma
 
 
 class VehicleParameters:
-    """Calculate and update the parameters of a vehicle.
+    """Base class for all Vehicle-specific paramter classes.
+    Calculate and update the parameters of a vehicle.
 
     Provides tactical parameters.
     """
+
+    LIMIT_PREC = 1e-4
 
     def __init__(
         self,
@@ -25,6 +431,19 @@ class VehicleParameters:
         v_max_stop: float = 0.1,
         v_max_harddecel: float = 2.5,
         hfov: float = 2 * np.pi,
+        calib_mode=False,
+        verbose=True,
+        rep_force={},
+        dest_force={},
+        dynamics={},
+        # repulsive force field parameters
+        f_0: float = 7.0,
+        e_0: float = 0.995,
+        e_1: float = 0.7,
+        sigma_0: float = 0.5,
+        sigma_1: float = 5.0,
+        sigma_2: float = 0.3,
+        sigma_3: float = 4.9,
     ) -> None:
         """Create the parameter set of a default vehicle.
 
@@ -62,12 +481,27 @@ class VehicleParameters:
 
 
         """
+        self.calib_mode = calib_mode
+        self.verbose = verbose
+
         self.t_s = t_s
         self.d_arrived_inter = d_arrived_inter
         self.d_arrived_stop = d_arrived_stop
         self.v_max_stop = v_max_stop
         self.v_max_harddecel = v_max_harddecel
         self.hfov = hfov
+        
+        self.rep_force = rep_force
+        self.dest_force = dest_force
+
+        self._e_1 = 0  # set this before the first e_0 assignment, otherwise the value check of e_0 does not work.
+        self.f_0 = f_0
+        self.e_0 = e_0
+        self.e_1 = e_1
+        self.sigma_0 = sigma_0
+        self.sigma_1 = sigma_1
+        self.sigma_2 = sigma_2
+        self.sigma_3 = sigma_3
 
     # ---- PROPERTIES ----
 
@@ -176,6 +610,124 @@ class VehicleParameters:
             )
         self._hfov = hfov
 
+    @property
+    def f_0(self) -> float:
+        return self._f_0
+
+    @f_0.setter
+    def f_0(self, f_0) -> None:
+        f_0 = float(f_0)
+        if not f_0 >= 0:
+            msg = f"f_0 must be >=0, instead it was {f_0:.2f}"
+            if self.calib_mode:
+                if self.verbose: warnings.warn(msg)
+                f_0 = self.LIMIT_PREC
+            else:
+                raise ValueError(msg)
+        self._f_0 = f_0
+
+    @property
+    def e_0(self) -> float:
+        return self._e_0
+
+    @e_0.setter
+    def e_0(self, e_0) -> None:
+        if not isinstance(e_0, float):
+            raise TypeError("e_0 must be a float.")
+        if not self.e_1 < e_0 <= 1:
+            msg = f"e_0 must be in ]e_1={self.e_1:.2f}, 1], instead it was {e_0:.2f}"
+            if self.calib_mode:
+                if self.verbose: warnings.warn(msg)
+                e_0 = thresh(e_0, (self.e_1 * 1.001, 0.99999))
+            else:
+                raise ValueError(msg)
+        self._e_0 = e_0
+
+    @property
+    def e_1(self) -> float:
+        return self._e_1
+
+    @e_1.setter
+    def e_1(self, e_1) -> None:
+        if not isinstance(e_1, float):
+            raise TypeError("e_1 must be a float.")
+        if not 0 <= e_1 < self.e_0:
+            msg = f"e_1 must be in [0,e_0={self.e_0:.2f}[, instead it was {e_1:.2f}"
+            if self.calib_mode:
+                if self.verbose: warnings.warn(msg)
+                e_1 = thresh(e_1, (0, 0.99999 * self.e_0))
+            else:
+                raise ValueError(msg)
+        self._e_1 = e_1
+
+    @property
+    def sigma_0(self) -> float:
+        return self._sigma_0
+
+    @sigma_0.setter
+    def sigma_0(self, sigma_0) -> None:
+        if not isinstance(sigma_0, float):
+            raise TypeError("sigma_0 must be a float.")
+        if not sigma_0 >= 0:
+            msg = f"sigma_0 must be >=0, instead it was {sigma_0:.2f}"
+            if self.calib_mode:
+                if self.verbose: warnings.warn(msg)
+                sigma_0 = self.LIMIT_PREC
+            else:
+                raise ValueError(msg)
+        self._sigma_0 = sigma_0
+
+    @property
+    def sigma_1(self) -> float:
+        return self._sigma_1
+
+    @sigma_1.setter
+    def sigma_1(self, sigma_1) -> None:
+        if not isinstance(sigma_1, float):
+            raise TypeError("sigma_1 must be a float.")
+        if not sigma_1 >= 0:
+            msg = f"sigma_1 must be >=0, instead it was {sigma_1:.2f}"
+            if self.calib_mode:
+                if self.verbose: warnings.warn(msg)
+                sigma_1 = self.LIMIT_PREC
+            else:
+                raise ValueError(msg)
+        self._sigma_1 = sigma_1
+
+    @property
+    def sigma_2(self) -> float:
+        return self._sigma_2
+
+    @sigma_2.setter
+    def sigma_2(self, sigma_2) -> None:
+        if not isinstance(sigma_2, float):
+            raise TypeError("sigma_2 must be a float.")
+        if not 0 < sigma_2 < self.sigma_0:
+            msg = f"sigma_2 must be in [0,sigma_0={self.sigma_0:.2f}[, instead it was {sigma_2:.2f}"
+            if self.calib_mode:
+                if self.verbose: warnings.warn(msg)
+                sigma_2 = thresh(sigma_2, (0, self.sigma_0 - self.LIMIT_PREC))
+            else:
+                raise ValueError(msg)
+        self._sigma_2 = sigma_2
+
+    @property
+    def sigma_3(self) -> float:
+        return self._sigma_3
+
+    @sigma_3.setter
+    def sigma_3(self, sigma_3) -> None:
+        if not isinstance(sigma_3, float):
+            raise TypeError("sigma_3 must be a float.")
+        if not 0 < sigma_3 < self.sigma_1:
+            msg = f"sigma_3 must be in [0,sigma_1={self.sigma_1:.2f}[, instead it was {sigma_3:.2f}"
+            if self.calib_mode:
+                if self.verbose: warnings.warn(msg)
+                sigma_0 = thresh(sigma_3, (0, self.sigma_1 - self.LIMIT_PREC))
+            else:
+                raise ValueError(msg)
+        self._sigma_3 = sigma_3
+
     # ---- METHODS ----
 
     def __str__(self):
@@ -194,6 +746,19 @@ class VehicleParameters:
         return s
 
 
+class CarParameters(VehicleParameters):
+    def __init__(
+        self,
+        length=4,
+        width=2.0,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.length = length
+        self.width = width
+
+
 class BicycleParameters(VehicleParameters):
     """Calculate and update the parameters of a bicycle and it's rider.
 
@@ -210,7 +775,7 @@ class BicycleParameters(VehicleParameters):
 
     def __init__(
         self,
-        v_max_riding: tuple = [-1.0, 7.0],
+        v_max_riding: tuple = [-1.0, 10.0],
         v_desired_default: float = 5.0,
         p_decay: float = 5.0,
         p_0: float = 30.0,
@@ -228,6 +793,8 @@ class BicycleParameters(VehicleParameters):
         d_arrived_inter: float = 2.0,
         d_arrived_stop: float = 2.0,
         v_max_harddecel: float = 2.5,
+        g = 9.81,
+        **kwargs,
     ) -> None:
         """Create the parameter set of a default bicycle.
 
@@ -305,6 +872,7 @@ class BicycleParameters(VehicleParameters):
             v_max_stop=v_max_stop,
             v_max_harddecel=v_max_harddecel,
             hfov=hfov,
+            **kwargs,
         )
 
         # Dynamic v_max_ridingter default values
@@ -357,7 +925,10 @@ class BicycleParameters(VehicleParameters):
         # Control parameter default values
         self.k_p_v = k_p_v
         self.k_p_delta = k_p_delta
-
+        
+        #Physical constants
+        self.g = g
+ 
     # ---- PROPERTIES ----
 
     @property
@@ -596,6 +1167,136 @@ class BicycleParameters(VehicleParameters):
                              {k_p_delta:.2f}"
             )
         self._k_p_delta = k_p_delta
+        
+class PlanarPointBicycleParameters(BicycleParameters):
+    
+    FIXED_POLES = 0+0j #must have a double pole at FIXED_POLES
+    N_POLES = 4
+    
+    def __init__(self, 
+                 poles = [-2+0j], 
+                 gains = [2],
+                 **kwargs):
+        BicycleParameters.__init__(self, **kwargs)
+        self.gains = gains
+        self.poles = poles
+        
+    @property
+    def poles(self):
+        return self._poles
+    @poles.setter
+    def poles(self, poles):
+        if poles is None:
+            poles = [-2+0j]
+        if not isinstance(poles, (list, tuple, np.ndarray)):
+            poles = np.array(poles)
+        if len(poles) != 1 or np.imag(poles[0]) != 0:
+            msg = "PlanarPointBicycleParameters must have one real pole! Instead" \
+                  f"you provided {len(poles)} poles = {poles}"
+            ValueError(msg)
+        self._poles = [poles[0]]
+        
+class PlanarBicycleParameters(BicycleParameters):
+    
+    def __init__(self, 
+                 poles = (-1.0141284591434665 + 1.226826644413086j,
+                          -1.0141284591434665 - 1.226826644413086j),
+                 **kwargs):
+        
+        BicycleParameters.__init__(self, **kwargs)
+        self.poles = poles    
+
+        
+class BalancingRiderBicycleParameters(BicycleParameters):
+    
+    def __init__(self, 
+                 bicycleParameterDict = meijaard2007_browser_jason, 
+                 poles = (-3.3+9.5j, -3.3-9.5j, -1.3+2.5j, -1.3-2.5j, -4.0),
+                 p_dist_roll = 0.00,
+                 p_dist_steer = 0.00,
+                 T_dist_roll = 9000,
+                 T_dist_steer = 1000,
+                 gains = None,
+                 **kwargs):
+        """
+        Generate a parameters object for the Whipple-Carvallo Bicycle.
+
+        Parameters
+        ----------
+        bicycleParameterDict : dict, optional
+            Dictionary with bicycle parameters from 
+            bicycleparameters.parameter_dicts. The default is 
+            bicycleparameters.parameter_dicts.meijaard2007_browser_jason.
+        poles : array-like, optional
+            Pole locations of the Full-state-feedback Whipple-Carvallo model. 
+            The default is (-18 + 0j, -19 + 0, -20 + 0j, -1.2240726404163056+
+            1.2879634520488243j, -1.2240726404163056-1.2879634520488243j), 
+            which was obtained from pilot calibration tests. 
+        p_dist_roll : float, optional
+            Probability p of a roll torque disturbance occuring at any given 
+            time step. The default is 0.00.
+        p_dist_steer : float, optional
+            Probability p of a steer torque disturbance occuring at any given 
+            time step. The default is 0.00.
+        T_dist_roll : float, optional
+            Magnitude of the disturbance roll torque. The default is 9000 N.
+        T_dist_steer : float, optional
+            Magnitude of the disturbance steer torque. The default is 1000 N.
+        **kwargs 
+            Keyword argumens of BicycleParameters.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        # Meijard(2007) model and parameter set from bicycleparameters
+        p = Meijaard2007ParameterSet(bicycleParameterDict, True)
+        m = Meijaard2007Model(p)
+        
+        #set wheelbase to the parameters in the parameter dict. This overwrites
+        #any manually given wheelbase. 
+        kwargs = dict(kwargs, 
+                      l = p.parameters["w"], 
+                      l_1 = p.parameters["w"] / 2)
+        
+        #call constructor of super
+        BicycleParameters.__init__(self, **kwargs)
+        
+        #physical parameters
+        self.bp_model = m
+        self.bp_params_set = p
+        self.m = p.parameters["mB"] + p.parameters["mF"] + p.parameters["mH"] + p.parameters["mR"]
+        self.g = p.parameters["g"]
+        
+        #control parameters
+        self.poles = poles
+        self.gains = gains
+        
+        #noise / disturbance parameters
+        self.p_dist_roll = p_dist_roll
+        self.p_dist_steer = p_dist_steer
+        self.T_dist_roll = T_dist_roll
+        self.T_dist_steer = T_dist_steer
+        
+    def get_state_space_matrices(self, v):
+        """
+        Calculate the state space matrices of the Whipple-Carvallo bicycle
+        for the speed v. 
+
+        Parameters
+        ----------
+        v : float
+            Longitudinal forward speed in m/s.
+
+        Returns
+        -------
+        A, B : numpy.ndarray
+            State space matrices
+        """
+        
+        return self.bp_model.form_state_space_matrices(v=v)
 
 
 class InvPendulumBicycleParameters(BicycleParameters):
@@ -647,9 +1348,10 @@ class InvPendulumBicycleParameters(BicycleParameters):
         v_max_walk: float = 1.5,
         delta_max_walk: tuple = 0.174,
         # repulsive force field parameters
+        f_0: float = 7.0,
         e_0: float = 0.995,
         e_1: float = 0.7,
-        sigma_0: float = 3.0,
+        sigma_0: float = 0.5,
         sigma_1: float = 5.0,
         sigma_2: float = 0.3,
         sigma_3: float = 4.9,
@@ -746,6 +1448,9 @@ class InvPendulumBicycleParameters(BicycleParameters):
             Maximum steer angle (symmetric) below which the rider may stop
             walking and start cycling. The default is 0.174.
 
+        f_0 : float, optional
+            Repulsive force magnitude at the ego-location of the bike. The
+            default is 7.0 (m/s)
         e_0 : float, optional
             Exccentricity of the repulsive force ellipses, The default
             is 0.995.
@@ -791,6 +1496,13 @@ class InvPendulumBicycleParameters(BicycleParameters):
             d_arrived_stop=d_arrived_stop,
             v_max_stop=v_max_stop,
             v_max_harddecel=v_max_harddecel,
+            f_0=f_0,
+            e_0=e_0,
+            e_1=e_1,
+            sigma_0=sigma_0,
+            sigma_1=sigma_1,
+            sigma_2=sigma_2,
+            sigma_3=sigma_3,
         )
 
         # Bike dimensions
@@ -809,14 +1521,6 @@ class InvPendulumBicycleParameters(BicycleParameters):
         #
         self.v_max_walk = v_max_walk
         self.delta_max_walk = delta_max_walk
-
-        # repulsive force fields
-        self.e_0 = e_0
-        self.e_1 = e_1
-        self.sigma_0 = sigma_0
-        self.sigma_1 = sigma_1
-        self.sigma_2 = sigma_2
-        self.sigma_3 = sigma_3
 
         # Pysical constants
         self.g = g
@@ -1011,108 +1715,6 @@ class InvPendulumBicycleParameters(BicycleParameters):
             )
         self._delta_max_walk = delta_max_walk
 
-    @property
-    def e_0(self) -> float:
-        return self._e_0
-
-    @e_0.setter
-    def e_0(self, e_0) -> None:
-        if hasattr(self, "_e_0"):
-            raise AttributeError("e_0 is immutable.")
-        if not isinstance(e_0, float):
-            raise TypeError("e_0 must be a float.")
-        if not 0 < e_0 < 1:
-            raise ValueError(
-                f"e_0 must be in ]0,1[, instead it was \
-                             {e_0:.2f}"
-            )
-        self._e_0 = e_0
-
-    @property
-    def e_1(self) -> float:
-        return self._e_1
-
-    @e_1.setter
-    def e_1(self, e_1) -> None:
-        if hasattr(self, "_e_1"):
-            raise AttributeError("e_1 is immutable.")
-        if not isinstance(e_1, float):
-            raise TypeError("e_1 must be a float.")
-        if not 0 < e_1 < 1:
-            raise ValueError(
-                f"e_1 must be in ]0,1[, instead it was \
-                             {e_1:.2f}"
-            )
-        self._e_1 = e_1
-
-    @property
-    def sigma_0(self) -> float:
-        return self._sigma_0
-
-    @sigma_0.setter
-    def sigma_0(self, sigma_0) -> None:
-        if hasattr(self, "_sigma_0"):
-            raise AttributeError("sigma_0 is immutable.")
-        if not isinstance(sigma_0, float):
-            raise TypeError("sigma_0 must be a float.")
-        if not sigma_0 >= 0:
-            raise ValueError(
-                f"sigma_0 must be >=0, instead it was \
-                             {sigma_0:.2f}"
-            )
-        self._sigma_0 = sigma_0
-
-    @property
-    def sigma_1(self) -> float:
-        return self._sigma_1
-
-    @sigma_1.setter
-    def sigma_1(self, sigma_1) -> None:
-        if hasattr(self, "_sigma_1"):
-            raise AttributeError("sigma_1 is immutable.")
-        if not isinstance(sigma_1, float):
-            raise TypeError("sigma_1 must be a float.")
-        if not sigma_1 >= 0:
-            raise ValueError(
-                f"sigma_1 must be >=0, instead it was \
-                             {sigma_1:.2f}"
-            )
-        self._sigma_1 = sigma_1
-
-    @property
-    def sigma_2(self) -> float:
-        return self._sigma_2
-
-    @sigma_2.setter
-    def sigma_2(self, sigma_2) -> None:
-        if hasattr(self, "_sigma_2"):
-            raise AttributeError("sigma_2 is immutable.")
-        if not isinstance(sigma_2, float):
-            raise TypeError("sigma_2 must be a float.")
-        if not sigma_2 >= 0:
-            raise ValueError(
-                f"sigma_2 must be >=0, instead it was \
-                             {sigma_2:.2f}"
-            )
-        self._sigma_2 = sigma_2
-
-    @property
-    def sigma_3(self) -> float:
-        return self._sigma_3
-
-    @sigma_3.setter
-    def sigma_3(self, sigma_3) -> None:
-        if hasattr(self, "_sigma_3"):
-            raise AttributeError("sigma_3 is immutable.")
-        if not isinstance(sigma_3, float):
-            raise TypeError("sigma_3 must be a float.")
-        if not sigma_3 >= 0:
-            raise ValueError(
-                f"sigma_3 must be >=0, instead it was \
-                             {sigma_3:.2f}"
-            )
-        self._sigma_3 = sigma_3
-
     # ---- METHODS ----
 
     def timevarying_combined_params(self, v: float) -> tuple[float, float]:
@@ -1136,50 +1738,46 @@ class InvPendulumBicycleParameters(BicycleParameters):
         K_tau_2 = (v * self.l_2) / (self.g * (self.l))
         K = (v**2) / (self.g * (self.l))
 
-        return K, K_tau_2
+        tau_3 = self.l / v
 
-    def r1_adaptive_gain(self, v=None):
-        """Calculate the constant PID gains for the controler R1 of the yaw
-        angle control.
+        return K, K_tau_2, tau_3
 
-        Parameters
-        ----------
-        v : float
-            Does nothing. Kept for compatibility. Default is None
+    def fullstate_feedback_gains(self, v):
+        # K_x = np.array(
+        #    [[6.26092881, -48.635, -6.92845026, -2.25215286, -2.15918001]]
+        # )
+        # K_u = -2.1591800063357907
 
-        Returns
-        -------
-        K : tuple[float, float, float]
-            PID gains given as (Kp, Ki, Kd).
+        params_kx = np.array(
+            [
+                [3.48203226e02, -5.12057324e03, 1.58364873e04, -1.98073306e04],
+                [-4.51700000e01, 0.00000000e00, 0.00000000e00, 0.00000000e00],
+                [-9.16379250e02, 1.31769807e04, -6.57341643e04, 8.22163589e04],
+                [3.20214069e02, -4.69953797e03, 1.66378680e04, -2.43114309e04],
+                [2.87549256e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00],
+            ]
+            #[
+            # [ 1.27977414e+02, -1.94670000e+03,  2.43962111e+03, -3.02454886e+03],
+            # [-4.51700000e+01,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
+            # [-2.26494120e+00,  2.85310350e+00, -1.01263905e+04,  1.25543113e+04],
+            # [ 9.05946737e+00, -1.99832338e+02, -2.45608874e+03, -2.08063358e+02],
+            # [-3.38428663e-09, -2.27913445e+03,  0.00000000e+00,  0.00000000e+00],
+            # ]
+        )
 
-        Changelog
-        ---------
+        params_ku = np.array(
+            #[2.87524813e-08, -2.27913445e03, 0.00000000e00, 0.00000000e00]
+            [-3.38638984e-09, -2.27913445e+03,  0.00000000e+00,  0.00000000e+00]
+        )
 
-        With 1.1.1, this function does not return adaptive gains anymore.
-        Instead, the Kp and Ki gains are static. This relates to the
-        changes made during the review process of the corresponding paper.
+        vdata = np.array((1, v**-1, v**-2, v**-3))
 
-        """
+        K_x = params_kx @ vdata
+        K_u = params_ku @ vdata
 
-        return (self.k_p_r1, self.k_i0_r1, 0.0)
+        K_x = K_x[np.newaxis, :]
 
-    def r2_adaptive_gain(self, v: float) -> tuple[float, float, float]:
-        """Calculate the adaptive PID gains for the controler R2 of the lean/
-        steer angle control.
-
-        Parameters
-        ----------
-        v : float
-            Current bicycle speed.
-
-        Returns
-        -------
-        K : tuple[float, float, float]
-            PID gains given as (Kp, Ki, Kd).
-
-        """
-
-        return (0, 0, self.k_d0_r2 / (v + self.k_d1_r2))
+        return K_x, K_u
 
     def update_dynamic_params(
         self, v: float

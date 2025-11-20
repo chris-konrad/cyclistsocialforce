@@ -2,7 +2,7 @@
 """
 Created on Fri Apr 21 10:52:45 2023.
 
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 from numpy import linspace
 from scipy import interpolate

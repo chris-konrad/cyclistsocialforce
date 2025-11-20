@@ -3,91 +3,31 @@
 
 Simulates three encroaching cyclists. 
 
-usage: demoCSFstandalone.py [-h] [-s] [-i]
+usage: demoCSFstandalone.py [-h] [-s] [-m]
 
 optional arguments:
   -h, --help  show this help message and exit
   -s, --save  Save results to ./output/
-  -i, --use_inv_pendulum_bike Use an inverted pendulum bicycle model instead 
-                              of the simple 2D model.
+  -m, --model Select between 'balancingrider' (default), 'planarpoint', 'invpendulum', and 'planartwowheel'.
 
 Created on Tue Feb 14 18:26:19 2023
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
+import os
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-import argparse
 
 from datetime import datetime
-from time import sleep, time
-from os import mkdir, path
 
-
-from cyclistsocialforce.vehicle import Bicycle, InvPendulumBicycle
+from cyclistsocialforce.vehicle import Bicycle, PlanarPointBicycle, InvPendulumBicycle, BalancingRiderBicycle
 from cyclistsocialforce.intersection import SocialForceIntersection
+from cyclistsocialforce.scenario import Scenario
 
 
-def initAnimation():
-    """Initialize the animation of the demo.
-
-    Use blitting for speed-up.
-
-    Returns
-    -------
-    fig : figure handle
-        The figure the animation will be shown in
-    fig_bg : image
-        The background of the figure for blitting
-    ax : axes object
-        The axes the animation will be shown in
-
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.set_xlim(0, 30)
-    ax.set_ylim(-10, 20)
-    ax.set_aspect("equal")
-    figManager = plt.get_current_fig_manager()
-    figManager.resize(1000, 500)
-    plt.show(block=False)
-    plt.pause(0.1)
-    fig_bg = fig.canvas.copy_from_bbox(fig.bbox)
-    fig.canvas.blit(fig.bbox)
-
-    return fig, fig_bg, ax
-
-
-def run(intersection, t, fig, fig_bg):
-    """Run the simulation of the demo intersection"""
-
-    t_s = intersection.vehicles[0].params.t_s
-
-    i_max = t / t_s
-
-    i = 0
-    while i < i_max:
-        t = time()
-
-        fig.canvas.restore_region(fig_bg)
-
-        intersection.step()
-
-        fig.canvas.blit(fig.bbox)
-        fig.canvas.flush_events()
-
-        dt = time() - t
-        if dt < t_s:
-            sleep(t_s - dt)
-
-        i = i + 1
-
-    # End animation to prevent animated graphics from disappearing.
-    intersection.endAnimation()
-
-
-def parseArgs():
+def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run a cyclist social force " "demo without SUMO."
+        description="Run a cyclist social force demo without SUMO."
     )
     parser.add_argument(
         "-s",
@@ -98,17 +38,29 @@ def parseArgs():
         help="Save results to ./output/",
     )
     parser.add_argument(
-        "-i",
-        "--use_inv_pendulum_bike",
-        dest="use_inv_pendulum_bike",
-        default=False,
-        action="store_true",
-        help=(
-            "Use an inverted pendulum bicycle model instead of the simple"
-            "simple 2D model"
-        ),
+        "-m",
+        "--model",
+        default="balancingbder",
+        type=str,
+        help=("Choose the dynamic model for the simulated bicycles. Can be any of 'balancingbider' (default), 'invpendulum', or 'planartwowheel'."),
     )
     return parser.parse_args()
+
+
+def get_bike_type(argstr):
+    """ Returns the bike model type selected by the '--model' input argument."""
+
+    MODEL_TYPES = {
+        "balancingbider": BalancingRiderBicycle,
+        "planarpoint": PlanarPointBicycle,
+        "invpendulum": InvPendulumBicycle,
+        "planartwowheel": Bicycle,
+    }
+
+    if not argstr in MODEL_TYPES:
+        raise ValueError(f"'model' must be any of {list(MODEL_TYPES.keys())}. Instead it was '{argstr}'")
+    
+    return MODEL_TYPES[argstr]
 
 
 def main():
@@ -123,75 +75,93 @@ def main():
             - potentials
             - force magnitude time histories
     """
-    args = parseArgs()
+    args = parse_args()
 
     if args.save:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = path.join(
-            "output", timestamp + "_testCyclistSocialForce.png"
+        filename = os.path.join(
+            "output", timestamp + "_standalone-demo-csf"
         )
     else:
         filename = None
 
-    plt.rcParams["text.usetex"] = False
+    
+    bike_type = get_bike_type(args.model)
 
-    # Initialize the animation. If the simulation is run with SUMO, the
-    # Scenario class takes care of that. Whithout Scenario, we have to do
-    # it manually. TODO: Generalize Scenario class.
-    fig, fig_bg, ax = initAnimation()
+    # Create a DemoScenario object based on the default simulation scenario. 
+    # - set up the scenario in the constructor
+    # - define a custom step function for the scenario
+    class DemoScenario(Scenario):
 
-    # Create bicycle objects
-    if args.use_inv_pendulum_bike:
-        bike1 = InvPendulumBicycle(
-            (-23 + 17, 0, 0, 5, 0, 0), userId="a", saveForces=True
-        )
-        bike1.params.v_desired_default = 4.5
-        print(bike1.params.v_desired_default)
-        bike2 = InvPendulumBicycle(
-            (0 + 15, -20, np.pi / 2, 5, 0, 0), userId="b", saveForces=True
-        )
-        bike2.params.v_desired_default = 5.0
-        bike3 = InvPendulumBicycle(
-            (-2 + 15, -20, np.pi / 2, 5, 0, 0), userId="c", saveForces=True
-        )
-        bike3.params.v_desired_default = 5.0
-    else:
-        bike1 = Bicycle((-23 + 17, 0, 0, 5, 0), userId="a", saveForces=True)
-        bike1.params.v_desired_default = 4.5
-        bike2 = Bicycle(
-            (0 + 15, -20, np.pi / 2, 5, 0), userId="b", saveForces=True
-        )
-        bike2.params.v_desired_default = 5.0
-        bike3 = Bicycle(
-            (-2 + 15, -20, np.pi / 2, 5, 0), userId="c", saveForces=True
-        )
-        bike3.params.v_desired_default = 5.0
+        def __init__(self):
+                """ Creates 3 bicycles witin one shared space without limits.
+                """
+                
+                # Create bicycle objects
+                bike1 = bike_type(
+                    (-23 + 17, 0, 0, 5, 0, 0, 0, 0), id="a", saveForces=True
+                )
+                bike1.params.v_desired_default = 4.5
+                print(bike1.params.v_desired_default)
+                bike2 = bike_type(
+                    (0 + 15, -20, np.pi / 2, 5, 0, 0, 0, 0), id="b", saveForces=True
+                )
+                bike2.params.v_desired_default = 5.0
+                bike3 = bike_type(
+                    (-2 + 15, -20, np.pi / 2, 5, 0, 0, 0, 0), id="c", saveForces=True
+                )
+                bike3.params.v_desired_default = 5.0
 
-    # Set destinations.
-    bike1.setDestinations((35, 64, 65), (0, 0, 0))
-    bike2.setDestinations((15, 15, 15), (20, 49, 50))
-    bike3.setDestinations((13, 13, 13), (20, 49, 50))
+                # Set destinations.
+                bike1.setDestinations((35, 64, 65), (0, 0, 0))
+                bike2.setDestinations((15, 15, 15), (20, 49, 50))
+                bike3.setDestinations((13, 13, 13), (20, 49, 50))
 
-    # A social force intersection to manage the three bicycles. Run the
-    # simulation without SUMO. Activate animation for some nice graphics.
-    intersection = SocialForceIntersection(
-        (bike1, bike2, bike3),
-        activate_sumo_cosimulation=False,
-        animate=True,
-        axes=ax,
-    )
+                # Axes for animation
+                fig, ax = plt.subplots(1, 1)
+                ax.set_title(f"Interaction demo: {args.model}")
+                ax.set_xlim(0, 30)
+                ax.set_ylim(-10, 20)
+                ax.set_aspect("equal")
 
+                # A social force intersection to manage the three bicycles. Run the
+                # simulation without SUMO. Activate animation for some nice graphics.
+                self.intersection = SocialForceIntersection(
+                    (bike1, bike2, bike3),
+                    activate_sumo_cosimulation=False,
+                    animate=True,
+                    axes=ax
+                )
+
+                Scenario.__init__(self, self._step_func, animate=True, verbose=True, axes=ax)
+
+        def _step_func(self):
+            """ The custom step function for this scenario calls the step function of the only "intersection" in the scenario.
+            """
+            self.intersection.step()
+        
     # Run the simulation
     t = 7
-    run(intersection, t, fig, fig_bg)
+    scn = DemoScenario()
+    scn.run(t)
 
-    axes = bike1.plot_states(t_end=t)
-    bike2.plot_states(t_end=t, axes=axes)
-    bike3.plot_states(t_end=t, axes=axes)
+    # Prevent drawings from disappearing after the animation finished.
+    scn.intersection.set_animated(False)
+    
+    # Plot simulation results
+    axes_states = None
+    axes_forces = None
+    for bike in scn.intersection.vehicles:
+        axes_states = bike.plot_states(t_end=t, axes=axes_states)
+        axes_forces = bike.plot_forces(t_end=t, axes=axes_forces, components_to_plot=['magnitude', 'direction'])
+    plt.show(block=True)
 
     if args.save:
-        fig = axes[0].get_figure()
-        fig.savefig(filename)
+        fig_states = axes_states[0].get_figure()
+        fig_states.savefig(filename+"_states.png")
+
+        fig_forces = axes_states[0].get_figure()
+        fig_forces.savefig(filename+"_forces.png")
 
 
 # Entry point

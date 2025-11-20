@@ -3,16 +3,11 @@ Created on Wed Apr 19 16:49:26 2023
 
 Classes defining different vehicle types for the social force model.
 
-Hierarchy:
-    Vehicle
-     └── Bicycle
-         ├── 2DBicycle
-         └── InvPendulumBicycle
-
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
-import numpy as np
 
+import numpy as np
+import control as ct
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from scipy import interpolate
@@ -22,17 +17,33 @@ from cyclistsocialforce.utils import (
     limitAngle,
     cart2polar,
     thresh,
-    angleDifference,
-    toDeg,
-    DiffEquation,
+    angleDifference
 )
-from cyclistsocialforce.vehiclecontrol import PIDcontroller
 from cyclistsocialforce.parameters import (
+    CarParameters,
     VehicleParameters,
     BicycleParameters,
+    PlanarBicycleParameters,
+    PlanarPointBicycleParameters,
     InvPendulumBicycleParameters,
+    BalancingRiderBicycleParameters,
 )
-from cyclistsocialforce.vizualisation import BicycleDrawing2D
+from cyclistsocialforce.vizualisation import (
+    VehicleDrawing,
+    BicycleDrawing2D,
+    CarDrawing2D,
+)
+
+from cyclistsocialforce.dynamics import (
+    Dynamics,
+    PlanarPointDynamics,
+    BalancingRiderDynamics,
+    PlanarTwoWheelerDynamics,
+    PIDcontroller
+)
+
+
+# ------------------------- Vehicle Classes ------------------------------------
 
 
 class Vehicle:
@@ -42,35 +53,49 @@ class Vehicle:
     the selected route.
     """
 
+    DYNAMICS_TYPE = Dynamics
+    DRAWING_TYPE = VehicleDrawing
+    PARAMS_TYPE = VehicleParameters
     REQUIRED_PARAMS = ("d_arrived_inter", "hfov")
 
+    N_STATES = 4
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]"]
+
     def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
+        self,
+        s0,
+        id="unknown",
+        route=(),
+        saveForces=False,
+        params=None,
+        dest_force_func=None,
+        rep_force_func=None,
+        uncontrolled=False,
+        uncontrolled_traj=(),
     ):
         """Create a new Vehicle.
 
-        Creates a vehicle object designed to model the planar dynamics of a
-        vehicle in 2D space and calculate corresponding social forces according
-        to the Cyclist Social Force concept (CSF)
-
-        If a route is provided, an intersection object that owns this
-        vehicle will be calculating destinations for crossing an intersection
-        according to this route. A route must consist of SUMO edge ids.
+        Creates a generic vehicle that may be equipped with custom dynamics,
+        repulsive and destination forces.
 
         Definition of state variables:
             x: position [m] in the global coordinate frame
             y: position [m] in the global coordinate frame
-            theta: heading [rad] relative to the positive x-axis in global
+            psi: heading [rad] relative to the positive x-axis in global
                    frame. Positive angles go counterclockwise.
             v: longitudinal speed [m/s] of the vehicle
             delta: steer angle relative to the heading. Positive angles go
                  counterclockwise.
 
+        For SUMO: If a route is provided, an intersection object that owns this
+        vehicle will be calculating destinations for crossing an intersection
+        according to this route. A route must consist of SUMO edge ids.
+
         Parameters
         ----------
         s0 : List of float
-            List containing the initial vehicle state (x, y, theta, v, delta).
-        userId : str, optional
+            List containing the initial vehicle state (x, y, psi, v, delta).
+        id : str, optional
             String for identifying this vehicle. Default = ""
         route : list of str, optional
             List of SUMO edge IDs describing the vehicle route. An empty list
@@ -83,25 +108,55 @@ class Vehicle:
             VehicleParams object providing a parameter set for this vehicle.
             When no parameter object is provided, the vehicle is instantiated
             with default parameters.
+        rep_force_func : function, optional
+            Create a vehicle with a custom repulsive force by passing a handle
+            with the signature F1, F2 = rep_force_func(Vehicle, x, y, psi),
+            where Vehicle is this vehicle and x, y, and psi are the locations
+            and orientations of other road users to be evaluated. F1, and F2
+            are the two dimensions of the resulting force (Fx and Fy or Fv,
+            Fpsi). If it uses parameters, these should be taken from
+            Vehicle.params.rep_force["param_name"].
+        dest_force_func : function, optional
+            Create a vehicle with custom destination force by passing a handle
+            with the signature F1, F2 = dest_force_func(Vehicle),
+            where Vehicle is this vehicle. F1, and F2 are the two dimensions of
+            the resulting force (Fx and Fy or Fv and Fpsi). If it uses
+            parameters, these should be taken from
+            Vehicle.params.dest_force["param_name"].
+        uncontrolled : boolean, optional
+            Creates an uncontrolled vehicle that follows a prediscribed
+            trajectory in its traj property rather then reacting to social
+            forces. To externally control this vehicle, make sure that traj
+            is populated correctly before any call to Vehicle.step(). The
+            default is False
+        uncontrolled_traj : list, optional
+            Prediscribed trajectory given as a list of vehicle states for the
+            uncontrolled vehicle to follow. Is only used if uncontrolled is
+            True. If empty, the vehicle does not move. The default is ().
         """
 
         # set parameters if not already set by a child.
         if params is None:
-            self.params = VehicleParameters()
+            self.params = self.PARAMS_TYPE()
         elif params != 0:
-            assert isinstance(params, VehicleParameters)
+            assert isinstance(params, self.PARAMS_TYPE)
             self.params = params
 
         # time step counter
         self.i = 0
 
-        # vehicle state (x, y, theta, v, delta)
+        # vehicle state (x, y, psi, v)
+        if len(s0) < self.N_STATES:
+            raise ValueError(f"The initial state s0 has to be size {self.N_STATES} with states {self.STATE_NAMES}. Instead it was {s0}.")
+        if len(s0) > self.N_STATES:
+            s0 = s0[:self.N_STATES]
+
         self.s = np.array(s0, dtype=float)
         self.s[2] = limitAngle(s0[2])
-        self.s_names = ("x[m]", "y[m]", "theta[rad]", "v[m/s]", "delta[rad]")
+        self.s_names = self.STATE_NAMES
 
         # trajectory (list of past states)
-        self.traj = np.zeros((5, int(30 / self.params.t_s)))
+        self.traj = np.zeros((len(s0), int(30 / self.params.t_s)))
         self.traj[:, 0] = self.s
 
         self.saveForces = saveForces
@@ -109,8 +164,8 @@ class Vehicle:
             self.trajF = np.zeros((2, int(30 / self.params.t_s)))
 
         # vehicle id
-        assert isinstance(userId, str), "User ID has to be a string."
-        self.id = userId
+        assert isinstance(id, str), "User ID has to be a string."
+        self.id = id
 
         # follow a route
         assert isinstance(route, tuple), "Route has to be a tuple"
@@ -122,7 +177,7 @@ class Vehicle:
         self.route = route
 
         # has a drawing
-        self.hasDrawings = [False]
+        self.drawing = None
 
         # next destination and queue of following destination
         self.dest = np.array([s0[0], s0[1], 0.0])
@@ -131,6 +186,170 @@ class Vehicle:
 
         # navigation state
         self.znav = np.array([True, False, False])
+
+        # ego repulsive force
+        self.F = []
+
+        # destination force, repulsive force and dynamic model step functions
+        self.dest_force_func = dest_force_func
+        self.rep_force_func = rep_force_func
+
+        # set to uncontrolled
+        if uncontrolled:
+            self.set_uncontrolled(uncontrolled_traj)
+        else:
+            self.uncontrolled = False
+
+        # dynamics
+        self.define_dynamics(self.DYNAMICS_TYPE)
+
+
+    @staticmethod
+    def step_follow_traj(Vehicle, F1=None, F2=None):
+        """
+        Move the uncontrolled vehicle to the next state given by its
+        predescribed fixed trajctory. The paramters Fx and Fy are ignored.
+
+        """
+        # move only of there are still states in the predescribed trajectory.
+        if np.shape(Vehicle.traj)[1] > Vehicle.i + 1:
+            Vehicle.s = Vehicle.traj[:, Vehicle.i + 1]
+
+    @staticmethod
+    def empty_dest_func(Vehicle):
+        """An empty destination force function that returns nothing for
+        uncontrolled vehicles.
+        """
+        return 0, 0
+    
+    def define_dynamics(self, dynamics_type):
+        """Define the dynamics type of this vehicle.
+        Paramters
+        ---------
+        dynamics_type : cyclistsocialforce.dynamics.Dynamics
+            A Dynamics type (must be a child of Dynamics)
+        """
+
+        self.dynamics = dynamics_type(self)
+        self.dyn_step_func = self.dynamics.step
+
+
+    def verify_params_class(self, kwargs):
+        """Check if the params object in the keyword argument has the right
+        type. Add the default parameters if kwargs has no params object.
+        """
+
+        if "params" not in kwargs.keys():
+            kwargs = dict(kwargs, params=self.PARAMS_TYPE())
+        else:
+            if not isinstance(kwargs["params"], self.PARAMS_TYPE):
+                raise TypeError(f"Params must be a '{self.PARAMS_TYPE.__name__}' object. "
+                                f"Instead it was '{type(kwargs['params']).__name__}'.")
+        return kwargs
+
+    def calcRepulsiveForce(self, x, y, psi):
+        """
+        Calculate the repulsive force of this vehicle using its
+        rep_force_func property.
+
+        Parameters
+        ----------
+        x : array-like
+            x locations of the road users experiencing a repulsive force
+            coming from this vehicle.
+        y : array-like
+            y locations of the road users experiencing a repulsive force
+            coming from this vehicle.
+        psi : array-like
+            Orientations of the road users experiencing a repulsive force
+            coming from this vehicle.
+
+        Returns
+        -------
+        F1 : float
+            First component of the repulsive force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        F2 : float
+            Second component of the repulsive force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        """
+        if self.rep_force_func is not None:
+            return self.rep_force_func(self, x, y, psi)
+        else:
+            return 0, 0
+
+    def calcDestinationForce(self):
+        """
+        Calculate the destination force of this vehicle using its
+        dest_force_func property.
+
+        Returns
+        -------
+        F1 : float
+            First component of the desination force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        F2 : float
+            Second component of the desination force. Returns 0 if the vehicle
+            does not have a dest_force_func.
+        """
+        if self.dest_force_func is not None or not self.uncontrolled:
+            self.updateDestination()
+            return self.dest_force_func(self)
+        else:
+            return 0, 0
+
+    def step(self, F1=0, F2=0):
+        """
+        Advance the vehicle by one simulation step using its dyn_step_func
+        property.
+
+        Parameters
+        ----------
+        F1 : float, optional
+            First component of the driving force. The default is 0.
+        F2 : float, optional
+            Second component of the driving force. The default is 0.
+
+        """
+
+        # model dynamics
+        if self.dyn_step_func is not None:
+            self.dyn_step_func(self, F1, F2)
+
+        # trajectory and counter
+        self.i += 1
+        self.traj[:, self.i] = self.s
+
+        if self.saveForces:
+            self.trajF[0, self.i] = F1
+            self.trajF[1, self.i] = F2
+
+        # drawing
+        self.update_drawing(Fres=(F1, F2))
+
+    def set_uncontrolled(self, traj=()):
+        """
+        Stop controlling the vehicle through social forces.
+
+        Instead, the vehicle follows a prediscribed trajectory in it's traj
+        property. To externally control this vehicle, leave traj empty and make
+        sure that the next step is populated before a to Vehicle.step().
+
+        Parameters
+        ----------
+        traj : array-like, optional
+            List or array of consecutive vehicle states where the first
+            dimension contains the state variable and the second dimension
+            contains the evolution of states. If empty, the car will not move.
+            The default is ().
+        """
+
+        self.uncontrolled = True
+        if len(traj) > 0:
+            self.traj = np.c_[self.traj[:, : self.i], traj]
+
+        self.dyn_step_func = self.step_follow_traj
+        self.dest_force_func = self.empty_dest_func
 
     def updateNavState(self, stop):
         """Update the navigation state of the vehicle.
@@ -375,10 +594,13 @@ class Vehicle:
             )
 
     def getDestinationDistance(self):
-        """Return the distance of the ego vehicle to it's current destination."""
+        """Return the distance of the ego vehicle to it's current destination.
+        """
+        dest = self.destqueue[self.destpointer, :]
+
         return np.sqrt(
-            np.power(self.dest[0] - self.s[0], 2)
-            + np.power(self.dest[1] - self.s[1], 2)
+            np.power(dest[0] - self.s[0], 2)
+            + np.power(dest[1] - self.s[1], 2)
         )
 
     def setDestinations(self, x, y, stop=None, reset=False):
@@ -388,13 +610,13 @@ class Vehicle:
 
         Parameters
         ----------
-        x : np.ndarray of float
+        x : np.ndarray of float or float
             List of the next destination x coordinates. First destination has
             to be at x[0].
-        y : np.ndarray of float
+        y : np.ndarray of float or float
             List of the next destination x coordinates. First destination has
             to be at y[0].
-        stop : np.ndarray of float, default = np.zeros_like(x)
+        stop : np.ndarray of float or float, default = np.zeros_like(x)
             Indicator if the cyclist should stop at an intermediate
             destination. 1.0 -> stop, 0.0 -> no stop.
         reset : bool
@@ -406,15 +628,21 @@ class Vehicle:
         ---------
         v0.0.x  First implementation
         v0.1.x  Added stop flags
+        07/25   Update current destination with first destination in queue when "reset" is True.
 
         """
-
-        if stop == None:
+        x = np.array([x]).flatten()
+        y = np.array([y]).flatten()
+        
+        if stop is None:
             stop = np.zeros_like(x)
+        else:
+            stop = np.array([stop]).flatten()
 
         if reset or self.destqueue is None:
             self.destqueue = np.c_[x, y, stop]
             self.destpointer = 0
+            self.dest = [x[0], y[0], stop[0]]
         else:
             self.destqueue = np.vstack((self.destqueue, np.c_[x, y, stop]))
 
@@ -464,43 +692,51 @@ class Vehicle:
         else:
             self.setDestinations(x_i, y_i, reset=reset)
 
-    def endAnimation(self):
-        """End animation of the vehicle
+    def add_drawing(self, ax, drawing=None, **kwargs):
+        """Adds a drawing to this vehicle.
 
-        Set the "animated" property of all graphic object to False to prevent
-        them from disappearing once the animation ends.
+        Parameters
+        ----------
+        ax : axes
+            The axes object to be drawn in.
+        drawing : cyclistsocialforce.vizualisation.VehicleDrawing, optional
+            The drawing to be added. If None, a drawing with default parameters
+            is generated. Default is None.
+        **kwargs
+            Any keyword arguments to this vehicles drawing parameters class.
+            Only active if drawing=None.
+        """
+
+        if drawing is None:
+            self.drawing = self.DRAWING_TYPE(
+                ax, self, params=self.DRAWING_TYPE.PARAMS_CLASS(**kwargs)
+            )
+        else:
+            assert isinstance(drawing, self.DRAWING_TYPE), (
+                f"Provide a "
+                "{self.DRAWING_TYPE.__name__} object! Instead "
+                "you provided a {type(drawing)}."
+            )
+            self.drawing = drawing
+
+    def update_drawing(self, Fdest=None, Frep=None, Fres=None):
+        """Update this vehicles drawing with the current vehicle state.
 
         Returns
         -------
         None.
 
         """
-        if self.hasDrawings:
-            for g in self.ghandles:
-                if g is not None:
-                    g.set_animated(False)
 
-    def restartAnimation(self):
-        """End animation of the vehicle
-
-        Set the "animated" property of all graphic object to False to prevent
-        them from disappearing once the animation ends.
-
-        Returns
-        -------
-        None.
-
-        """
-        if self.hasDrawings:
-            for g in self.ghandles:
-                if g is not None:
-                    g.set_animated(True)
+        if self.drawing is not None:
+            self.drawing.update(self, Fdest=Fdest, Frep=Frep, Fres=Fres)
 
     def plot_states(
         self,
         axes: list[Axes] = None,
         states_to_plot: list[bool] = None,
         t_end: float = None,
+        plot_over_time = False,
         **plot_kw,
     ) -> list[Axes]:
         """Plot the state trajectories
@@ -511,10 +747,10 @@ class Vehicle:
         axes : list[Axes], optional
             Axes to be plotted in. Must be one axes per requested state to be
             plotted. The default is None and creates a new set of axes.
-        states_to_plot : list[bool], optional
-            States to be plotted. Must be a list of booleans indicating which
-            state should be plotted and which not. The default is None which
-            plots all states.
+        states_to_plot : list[bool] or list[int], optional
+            States to be plotted. Can be a list of booleans or a list of ints
+            indicating which state should be plotted and which not. The default
+            is None which plots all states.
         t_end : float, optional
             Time span of the plot in s. The default plots the full available
             trajectory.
@@ -536,13 +772,20 @@ class Vehicle:
 
         if states_to_plot is None:
             states_to_plot = [True] * self.s.shape[0]
+        if not isinstance(states_to_plot[0], bool):
+            temp = np.zeros_like(self.s, dtype=bool)
+            temp[states_to_plot] = True
+            states_to_plot = temp
 
         if axes is None:
-            fig, axes = plt.subplots(np.sum(states_to_plot), 1, sharex=True)
+            fig, axes = plt.subplots(np.sum(states_to_plot), 1, sharex=True, layout='constrained')
             for ax, name in zip(axes, np.array(self.s_names)[states_to_plot]):
                 ax.set_ylabel(name)
+                if "deg" in name:
+                    ax.set_ylim(-180, 180)
             axes[-1].set_xlabel("t[s]")
             axes[-1].legend()
+            axes[0].set_title('Agent States')
 
         assert (
             len(states_to_plot) == self.s.shape[0]
@@ -550,7 +793,7 @@ class Vehicle:
             states_to_plot needs to have the same number of elements as \
             this vehicle has states ({self.s.shape[0]}). Instead it has \
             {len(states_to_plot)} elements."
-        assert len(axes) == np.sum(
+        assert len(axes) >= np.sum(
             states_to_plot
         ), f"There were {len(axes)} \
             axes provided and plots of {np.sum(states_to_plot)} states \
@@ -559,9 +802,22 @@ class Vehicle:
 
         if "label" not in plot_kw:
             plot_kw["label"] = self.id
+            
+        if plot_over_time:
+            t = self.params.t_s * np.arange(i_end)
 
-        for ax, i_s in zip(axes, np.cumsum(states_to_plot)):
-            ax.plot(self.traj[i_s - 1, :i_end], **plot_kw)
+        for ax, i_s, name in zip(
+            axes,
+            np.argwhere(states_to_plot),
+            np.array(self.s_names)[states_to_plot],
+        ):
+            data_to_plot = self.traj[i_s[0], :i_end]
+            if "deg" in name:
+                data_to_plot = 180 * data_to_plot / np.pi
+            if plot_over_time:
+                ax.plot(t, data_to_plot, **plot_kw)
+            else:
+                ax.plot(data_to_plot, **plot_kw)
 
         if axes[-1].get_legend() is not None:
             axes[-1].get_legend().remove()
@@ -626,6 +882,7 @@ class Vehicle:
                 ]
             for ax, c in zip(axes, components_to_plot):
                 ax.set_ylabel(c)
+            axes[0].set_title('Social Forces')
 
         assert len(axes) == len(
             components_to_plot
@@ -660,6 +917,76 @@ class Vehicle:
         return axes
 
 
+class UncontrolledVehicle(Vehicle):
+
+    DRAWING_TYPE = CarDrawing2D
+    PARAMS_TYPE = CarParameters
+
+    def __init__(self, s0, trajectory=(), **kwargs):
+        """Object respresenting a stationary (uncontrolled or externally controlled)
+        vehicle.
+
+        The car may move following a prediscribed trajectory in it's traj
+        property. To externally control this vehicle, populate its
+        traj property with states.
+
+        Parameters
+        ----------
+        s0 : List of float
+            List containing the initial car state (x, y, psi, v).
+        id : str, optional
+            String for identifying this vehicle. Default = ""
+        trajectory : array-like, optional
+            List or array of consecutive vehicle states where the first
+            dimension contains the state variable and the second dimension
+            contains the evolution of states. If empty, the car will not move.
+            The default is ().
+
+        Returns
+        -------
+        None.
+
+        """
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
+
+        # call super
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # overwrite empty trajectory property with the prediscribed trajectory.
+        if len(trajectory) > 0:
+            self.traj = np.array(trajectory)
+
+
+    def step(self, Fx=None, Fy=None):
+        """
+        Move the stationary car to the next state given by its predescribed,
+        fixed trajctory. The paramters Fx and Fy are not used and only
+        exist to ensure function signature compatibility.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.i += 1
+
+        # move only of there are still states in the predescribed trajectory.
+        if np.shape(self.traj)[1] > self.i:
+            self.s = self.traj[:, self.i]
+
+        # Drawing
+        self.update_drawing()
+
+    def calcRepulsiveForce(self, x, y, psi):
+        method = TwoDBicycle.calcRepulsiveForce
+
+        return method(self, x, y, psi)
+
+    def calcDestinationForce(self):
+        return 0, 0
+
+
 class Bicycle(Vehicle):
     """Parent class for all bicycle types. Child of Vehicle.
 
@@ -684,48 +1011,30 @@ class Bicycle(Vehicle):
         "d_arrived_inter",
         "hfov",
     )
+    N_STATES = 5
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]"]
 
-    def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
-    ):
+    PARAMS_TYPE = BicycleParameters
+    DRAWING_TYPE = BicycleDrawing2D
+
+    def __init__(self, s0, **kwargs):
         """
 
         Parameters
         ----------
         s0 : List of float
-            List containing the initial vehicle state (x, y, theta, v, delta).
-        userId : str, optional
-            String for identifying this vehicle. Default = ""
-        route : list of str, optional
-            List of SUMO edge IDs describing the vehicle route. An empty list
-            deactivates route following and destinations have to be set
-            using vehicle.setDestinations(). Default = []
-        saveForces : boolean, optional
-            Save a history of the forces experienced by this vehicle.
-            Default = False
-        params : VehicleParams, optional
-            VehicleParams object providing a parameter set for this vehicle.
-            When no parameter object is provided, the vehicle is instantiated
-            with default parameters.
+            List containing the initial vehicle state (x, y, psi, v, delta).
+        **kwargs 
+            Keyword arguments passed to Vehicle. 
         """
 
-        # set parameters if not already set by a child.
-        if params is None:
-            self.params = BicycleParameters()
-        elif params != 0:
-            assert isinstance(params, BicycleParameters)
-            self.params = params
+        # parameters
+        kwargs = self.verify_params_class(kwargs)
 
         # call super
-        Vehicle.__init__(self, s0, userId, route, saveForces, 0)
+        Vehicle.__init__(self, s0, **kwargs)
 
         self.updateExcentricity()
-
-        # ego repulsive force
-        self.F = []
-
-        # has a drawing of a bicycle
-        self.hasDrawings = [False] * 8
 
         self.destspline = None
 
@@ -794,6 +1103,7 @@ class Bicycle(Vehicle):
 
         return P
 
+
     def calcRepulsiveForce(self, x, y, phi=None):
         """Evaluate the repulsive force of the ego vehicle.
 
@@ -835,6 +1145,7 @@ class Bicycle(Vehicle):
         Fy = Frho0 * np.sin(phi) + Fphi0 * np.cos(phi)
 
         return (Fx, Fy)
+
 
     def calcDestinationForceField(self, x, y):
         """Calculates force vectors from locations in x, y to the current
@@ -970,275 +1281,12 @@ class Bicycle(Vehicle):
 
         self.traj[:, self.i] = self.s
 
-    def makeBikeDrawing(
-        self,
-        ax,
-        drawForce=False,
-        drawTrajectory=False,
-        drawNextDest=False,
-        drawDestQueue=False,
-        drawPastDest=False,
-        drawName=False,
-        animated=True,
-    ):
-        """Create a bicycle drawing using current state.
+        if self.saveForces:
+            self.trajF[0, self.i] = Fx
+            self.trajF[1, self.i] = Fy
 
-        Parameters
-        ----------
-
-        ax : Axes
-            Axes to draw the bicycle in
-        drawForce : boolean, optional
-            Draw the current destination force. Default = False
-        drawTrajectory : boolean, optional
-            Draw a solid line showing the past trajectories. Default = False
-        drawNextDest : boolean, optional
-            Draw a dotted line to the next destiation. Default = False
-        drawDestQueue : boolean, optional
-            Draw the current destination force. Default = False
-        drawPastDest : boolean, optional
-            Draw past destinations. Default = False
-        drawName : boolean, optional
-            Draw the name of the bike. Default = False
-        animated : boolean, optional
-            Create an animated drawing. Default = True
-
-        """
-
-        self.hasDrawings[0] = True
-        self.hasDrawings[1] = drawForce
-        self.hasDrawings[3] = drawTrajectory
-        self.hasDrawings[4] = drawNextDest
-        self.hasDrawings[5] = drawDestQueue
-        self.hasDrawings[6] = drawPastDest
-        self.hasDrawings[7] = drawName
-
-        # list to save graphic object handles
-        self.ghandles = [None] * (15)
-
-        self.drawing = BicycleDrawing2D(ax, self, proj_3d=False)
-
-        # force
-        if drawForce:
-            self.ghandles[8] = ax.arrow(
-                self.s[0],
-                self.s[1],
-                self.force[0],
-                self.force[1],
-                linewidth=1,
-                head_width=0.4,
-                head_length=0.5,
-                color=(12.0 / 255, 35.0 / 255, 64.0 / 255),
-                animated=animated,
-                zorder=3,
-            )
-            ax.draw_artist(self.ghandles[8])
-
-        # potential
-        # REMOVED due to errors (CS, 25-09-2023)
-
-        # trajectory
-        if drawTrajectory:
-            (self.ghandles[10],) = ax.plot(
-                self.traj[0],
-                self.traj[1],
-                color=(0.0 / 255, 166.0 / 255, 214.0 / 255),
-                linewidth=1,
-                animated=animated,
-            )
-            ax.draw_artist(self.ghandles[10])
-
-        # next destination
-        if drawNextDest:
-            (self.ghandles[11],) = ax.plot(
-                (self.s[0], self.dest[0]),
-                (self.s[1], self.dest[1]),
-                color="gray",
-                linewidth=1,
-                linestyle="dashed",
-                animated=animated,
-                zorder=3,
-            )
-            ax.draw_artist(self.ghandles[11])
-            if not drawDestQueue:
-                (self.ghandles[12],) = ax.plot(
-                    self.dest[0],
-                    self.dest[1],
-                    marker="x",
-                    markersize=5,
-                    markeredgecolor="gray",
-                    markeredgewidth=2,
-                    animated=animated,
-                    zorder=3,
-                )
-                ax.draw_artist(self.ghandles[12])
-
-        # destination queue
-        if drawDestQueue:
-            # next and past destinations
-            if self.destqueue is None:
-                (self.ghandles[12],) = ax.plot(
-                    self.dest[0],
-                    self.dest[1],
-                    marker="x",
-                    markersize=5,
-                    markeredgecolor=(0.0 / 255, 166.0 / 255, 214.0 / 255),
-                    markeredgewidth=1,
-                    animated=animated,
-                    zorder=3,
-                )
-                ax.draw_artist(self.ghandles[12])
-            else:
-                (self.ghandles[12],) = ax.plot(
-                    self.destqueue[self.destpointer :, 0],
-                    self.destqueue[self.destpointer :, 1],
-                    linestyle="None",
-                    marker="x",
-                    markersize=5,
-                    markeredgecolor="gray",
-                    markeredgewidth=1,
-                    animated=animated,
-                    zorder=3,
-                )
-                ax.draw_artist(self.ghandles[12])
-
-        # past destinations
-        if drawPastDest and self.destqueue is not None:
-            (self.ghandles[13],) = ax.plot(
-                self.destqueue[: self.destpointer, 0],
-                self.destqueue[: self.destpointer, 1],
-                linestyle="None",
-                marker="x",
-                markersize=5,
-                markeredgecolor="gray",
-                markeredgewidth=1,
-                animated=animated,
-                zorder=3,
-            )
-            ax.draw_artist(self.ghandles[13])
-
-        # name
-        if drawName:
-            self.ghandles[14] = ax.text(
-                self.s[0],
-                self.s[1] + 1,
-                self.id,
-                color="black",
-                fontsize=8,
-                animated=animated,
-                zorder=4,
-            )
-            ax.draw_artist(self.ghandles[14])
-
-    def updateBikeDrawing(self, ax):
-        """Update bicycle drawing according to the current state vector s
-
-        Parameters
-        ----------
-
-        ax : Axes
-            Axes of the current bicycle drawing.
-        """
-
-        assert self.hasDrawings[
-            0
-        ], "Call makeBikeDrawing() before updateBikeDrawing()!"
-
-        self.drawing.update(self)
-
-        # force
-        if self.hasDrawings[1]:
-            self.ghandles[8].set_data(
-                x=self.s[0],
-                y=self.s[1],
-                dx=self.force[0] / 2,
-                dy=self.force[1] / 2,
-            )
-            ax.draw_artist(self.ghandles[8])
-
-        # potential
-        # REMOVED due to errors.
-
-        # trajectory
-        if self.hasDrawings[3]:
-            self.ghandles[10].set_data(
-                self.traj[0, 0 : self.i], self.traj[1, 0 : self.i]
-            )
-            ax.draw_artist(self.ghandles[10])
-
-        # next destination
-        if self.hasDrawings[4]:
-            if self.destspline is not None:
-                self.ghandles[11].set_data(
-                    (self.destspline[:, 0]),
-                    (self.destspline[:, 1]),
-                )
-            else:
-                self.ghandles[11].set_data(
-                    (self.s[0], self.dest[0]),
-                    (self.s[1], self.dest[1]),
-                )
-            ax.draw_artist(self.ghandles[11])
-
-            if not self.hasDrawings[4]:
-                self.ghandles[12].set_data(self.dest[0], self.dest[1])
-                ax.draw_artist(self.ghandles[12])
-
-        # destination queue
-        if self.hasDrawings[5]:
-            if self.destqueue is None:
-                self.ghandles[12].set_data(self.dest[0], self.dest[1])
-            else:
-                self.ghandles[12].set_data(
-                    self.destqueue[self.destpointer :, 0],
-                    self.destqueue[self.destpointer :, 1],
-                )
-            ax.draw_artist(self.ghandles[12])
-
-        # past destinations
-        if self.hasDrawings[6]:
-            if self.ghandles[13] is not None:
-                self.ghandles[13].set_data(
-                    self.destqueue[: self.destpointer, 0],
-                    self.destqueue[: self.destpointer, 1],
-                )
-            ax.draw_artist(self.ghandles[13])
-
-        # name
-        if self.hasDrawings[7]:
-            self.ghandles[14].set_position((self.s[0], self.s[1] + 1))
-            ax.draw_artist(self.ghandles[14])
-
-    def endAnimation(self):
-        """End animation of the vehicle
-
-        Set the "animated" property of all graphic object to False to prevent
-        them from disappearing once the animation ends.
-
-        Returns
-        -------
-        None.
-
-        """
-        super().endAnimation()
-
-        self.drawing.animated = False
-        self.drawing.p.animated = False
-
-    def restartAnimation(self):
-        """End animation of the vehicle
-
-        Set the "animated" property of all graphic object to False to prevent
-        them from disappearing once the animation ends.
-
-        Returns
-        -------
-        None.
-
-        """
-        super().restartAnimation()
-        self.drawing.animated = True
-        self.drawing.p.animated = True
+        # Drawing
+        self.update_drawing()
 
 
 class TwoDBicycle(Bicycle):
@@ -1272,7 +1320,7 @@ class TwoDBicycle(Bicycle):
     )
 
     def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
+        self, s0, id="unknown", route=(), saveForces=False, params=None
     ):
         """Create a new bicycle based on the 2D two-wheeler model.
 
@@ -1286,8 +1334,8 @@ class TwoDBicycle(Bicycle):
          Parameters
          ----------
          s0 : List of float
-             List containing the initial vehicle state (x, y, theta, v, delta).
-         userId : str, optional
+             List containing the initial vehicle state (x, y, psi, v, delta).
+         id : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
              List of SUMO edge IDs describing the vehicle route. An empty list
@@ -1308,20 +1356,7 @@ class TwoDBicycle(Bicycle):
             assert isinstance(params, InvPendulumBicycleParameters)
             self.params = params
 
-        Bicycle.__init__(self, s0[0:5], userId, route, saveForces, 0)
-
-        # current state
-        #   [  x  ]   horizontal position
-        #   [  y  ]   vertical position
-        #   [ phi ]   yaw angle
-        #   [  v  ]   longitudinal speed
-        #   [delta]   steer angle
-        self.s = np.array(s0, dtype=float)
-        self.s[2] = limitAngle(s0[2])
-
-        # trajectory (list of past states)
-        self.traj = np.zeros((5, int(30 / self.params.t_s)))
-        self.traj[:, 0] = s0
+        Bicycle.__init__(self, s0, id, route, saveForces, 0)
 
         self.speed_controller = PIDcontroller(
             self.params.k_p_v, 0, 0, self.params.t_s, isangle=False
@@ -1364,6 +1399,9 @@ class TwoDBicycle(Bicycle):
         else:
             a, odelta = super().control(Fx, Fy)
             super().move(a, odelta)
+
+        # Drawing
+        self.update_drawing()
 
         # Trajectories
         self.i += 1
@@ -1456,14 +1494,16 @@ class TwoDBicycle(Bicycle):
         # interpolate
         try:
             tck, u = interpolate.splprep((x, y), s=0.0)
-        except TypeError as e:
+        except Exception as e:
             print(f"Bike {self.id} has a problem!")
             print(f"isLastDest: {self.isLastDest()}")
             print(f"destqueue: {self.destqueue}")
             print(f" i: {self.i}")
-            print(f" ispl: {ispl}")
+            if self.isLastDest():
+                print(f" ispl: {ispl}")
             print(f"x : {x}")
-            print(f"x : {y}")
+            print(f"y : {y}")
+            print(f"traj : {self.traj[:, (self.i - 1, self.i)]}")
             raise e
         xs, ys = interpolate.splev(np.linspace(0, 1, nSplpnts), tck)
         dxs, dys = interpolate.splev(np.linspace(0, 1, nSplpnts), tck, der=1)
@@ -1544,10 +1584,13 @@ class TwoDBicycle(Bicycle):
         x0 = self.s[0]
         y0 = self.s[1]
         psi0 = self.s[2]
-        V0 = 7
+        V0 = self.params.f_0
         Vdecay = [15, 0.5]
         b = 1
         a = 10
+
+        if V0 == 0.0:
+            return 0.0, 0.0
 
         psi_rel = psi0 - psi
 
@@ -1558,11 +1601,15 @@ class TwoDBicycle(Bicycle):
         # Vdecay, e = calcPotentialParams(10, 0.5, 2, 10)
 
         # decay
-        Vdecay[0] = 0.5 + 5 * np.sin(psi_rel) ** 2
-        Vdecay[1] = 0.3 + 4.9 * np.sin(psi_rel) ** 2
+        Vdecay[0] = (
+            self.params.sigma_0 + self.params.sigma_1 * np.sin(psi_rel) ** 2
+        )
+        Vdecay[1] = (
+            self.params.sigma_2 + self.params.sigma_3 * np.sin(psi_rel) ** 2
+        )
 
         # vrel = ((self.s[3]/5)**0.1 + 10)/11
-        e = e - 0.7 * np.sin(psi_rel) ** 2
+        e = self.params.e_0 - self.params.e_1 * np.sin(psi_rel) ** 2
 
         # coordinate transformations
         x0 = x - x0
@@ -1617,6 +1664,8 @@ class InvPendulumBicycle(TwoDBicycle):
     refered to as "inverted pendulum model" in the publication.
     """
 
+    PARAMS_TYPE = InvPendulumBicycleParameters
+
     REQUIRED_PARAMS = (
         "l_1",
         "l_2",
@@ -1634,25 +1683,25 @@ class InvPendulumBicycle(TwoDBicycle):
         "d_arrived_inter",
         "hfov",
     )
+    N_STATES = 6
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "theta[rad]"]
 
-    def __init__(
-        self, s0, userId="unknown", route=(), saveForces=False, params=None
-    ):
+    def __init__(self, s0, **kwargs):
         """Create a new bicycle based on the inverted pendulum model.
 
          InvPendulumBicycle state variable definition:
              [  x  ]   horizontal position [m]
              [  y  ]   vertical position [m]
-        s =  [ phi ]   yaw angle [rad]
+        s =  [ psi ]   yaw angle [rad]
              [  v  ]   longitudinal speed [m/s]
              [delta]   steer angle [rad]
-             [theta]   lean angle [rad]
+             [theta]   roll angle [rad]
 
          Parameters
          ----------
          s0 : List of float
-             List containing the initial vehicle state (x, y, theta, v, delta).
-         userId : str, optional
+             List containing the initial vehicle state (x, y, psi, v, delta, theta).
+         id : str, optional
              String for identifying this vehicle. Default = ""
          route : list of str, optional
              List of SUMO edge IDs describing the vehicle route. An empty list
@@ -1668,51 +1717,15 @@ class InvPendulumBicycle(TwoDBicycle):
 
         """
 
-        if params is None:
-            self.params = InvPendulumBicycleParameters()
-        elif params != 0:
-            assert isinstance(params, InvPendulumBicycleParameters)
-            self.params = params
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
 
-        TwoDBicycle.__init__(self, s0[0:5], userId, route, saveForces, 0)
+        # init parent
+        TwoDBicycle.__init__(self, s0, **kwargs)
 
-        # current state
-        #   [  x  ]   horizontal position
-        #   [  y  ]   vertical position
-        #   [ phi ]   yaw angle
-        #   [  v  ]   longitudinal speed
-        #   [delta]   steer angle
-        #   [theta]   lean angle
-        self.s = np.array(s0, dtype=float)
-        self.s[2] = limitAngle(s0[2])
-        self.s[5] = limitAngle(s0[5])
-        self.s_names = (
-            "x[m]",
-            "y[m]",
-            "phi[rad]",
-            "v[m/s]",
-            "delta[rad]",
-            "theta[rad]",
-        )
-
-        # trajectory (list of past states)
-        self.traj = np.zeros((6, int(30 / self.params.t_s)))
-        self.traj[:, 0] = s0
-
-        # Model dynamics in Z domain.
-        (
-            ab_r1,
-            ab_r2_delta,
-            ab_theta,
-            ab_psi,
-        ) = self.params.update_dynamic_params(self.s[3])
-
-        self.dynamics_r1 = DiffEquation(ab_r1)
-        self.dynamics_r2_delta = DiffEquation(
-            ab_r2_delta, th=self.params.delta_max
-        )
-        self.dynamics_theta = DiffEquation(ab_theta)
-        self.dynamics_psi = DiffEquation(ab_psi, y=s0[2] * np.ones(1))
+        # Model dynamics as a state-space system
+        self.init_dynamics_statespace()
+        self.x = np.array([[self.s[4]], [0], [self.s[5]], [0], [self.s[2]]])
 
         # state machine
         # TODO: This needs to be tested and improved
@@ -1721,6 +1734,56 @@ class InvPendulumBicycle(TwoDBicycle):
             self.zrid[1] = True
         else:
             self.zrid[0] = True
+
+    def get_openloop_statespace_matrices(self):
+        K, K_tau_2, tau_3 = self.params.timevarying_combined_params(self.s[3])
+        A = np.array(
+            [
+                [0, 1, 0, 0, 0],
+                [
+                    0,
+                    -self.params.c_steer / self.params.i_steer_vertvert,
+                    0,
+                    0,
+                    0,
+                ],
+                [0, 0, 0, 1, 0],
+                [
+                    -K / self.params.tau_1_squared,
+                    -K_tau_2 / self.params.tau_1_squared,
+                    1 / self.params.tau_1_squared,
+                    0,
+                    0.0,
+                ],
+                [1 / tau_3, 0, 0, 0, 0],
+            ]
+        )
+
+        B = np.array([0, 1 / self.params.i_steer_vertvert, 0, 0, 0])
+
+        C = np.array([0, 0, 0, 0, 1])
+
+        D = 0
+
+        return A, B, C, D
+
+    def init_dynamics_statespace(self):
+        K_x, K_u = self.params.fullstate_feedback_gains(self.s[3])
+        A, B, C, D = self.get_openloop_statespace_matrices()
+
+        self.dynamics = ct.ss(A - B[:, np.newaxis] @ K_x, K_u * B, C, D)
+
+    def update_dynamics(self):
+        A, B, C, D = self.get_openloop_statespace_matrices()
+        K_x, K_u = self.params.fullstate_feedback_gains(self.s[3])
+        K, K_tau_2, tau_3 = self.params.timevarying_combined_params(self.s[3])
+
+        A[3, 0] = -K / self.params.tau_1_squared
+        A[3, 1] = -K_tau_2 / self.params.tau_1_squared
+        A[4, 0] = 1 / tau_3
+
+        self.dynamics.A = A - B[:, np.newaxis] @ K_x
+        self.dynamics.B = K_u * B[:, np.newaxis]
 
     def speed_control(self, vd):
         """Calculate the acceleration as a reaction to the current social
@@ -1762,27 +1825,25 @@ class InvPendulumBicycle(TwoDBicycle):
 
         """
 
-        # update LTI parameters with current speed
-        (
-            ab_r1,
-            ab_r2_delta,
-            ab_theta,
-            ab_psi,
-        ) = self.params.update_dynamic_params(self.s[3])
-
-        self.dynamics_r1.update(ab_r1)
-        self.dynamics_r2_delta.update(ab_r2_delta)
-        self.dynamics_theta.update(ab_theta)
-        self.dynamics_psi.update(ab_psi)
+        # update statespace parameters with current speed
+        self.update_dynamics()
 
         # absolute force angle
         psi_d = np.arctan2(Fy, Fx)
 
         # calculate steer angle for stabilization
-        theta_d = self.dynamics_r1.step(angleDifference(self.s[2], psi_d))
-        delta = self.dynamics_r2_delta.step(theta_d - self.s[5])
-        theta = self.dynamics_theta.step(delta)
-        psi = limitAngle(self.dynamics_psi.step(delta))
+        t, psi, x = ct.forced_response(
+            self.dynamics,
+            T=np.array([0, self.params.t_s]),
+            X0=self.x,
+            U=np.ones(2) * psi_d,
+            return_x=True,
+            squeeze=False,
+        )
+        self.x = x[:, 1]
+        psi = limitAngle(psi[0][1])
+        delta = limitAngle(x[0][1])
+        theta = limitAngle(x[2][1])
 
         return (psi, delta, theta)
 
@@ -1842,6 +1903,7 @@ class InvPendulumBicycle(TwoDBicycle):
                 self.s[[2, 4, 5]] = self.step_yaw(Fx, Fy)
             else:
                 self.s[3] = self.params.v_max_walk
+                self.s[5] = 0
 
                 # for walking, use the 2D bicycle dynamics
                 a, odelta = super().control(Fx, Fy)
@@ -1849,17 +1911,15 @@ class InvPendulumBicycle(TwoDBicycle):
 
                 # pass bicycle states to the inverted pendulum dynamics even
                 # while walking to prevent errors in the transition.
-                self.dynamics_psi.setOutput(self.s[2])
-                self.dynamics_psi.setInput(self.s[4])
-                self.dynamics_r2_delta.setOutput(self.s[4])
-                self.dynamics_r2_delta.setInput(0)
-
-                # bicycle is upright.
-                self.s[5] = 0
+                self.x = np.array(
+                    [[self.s[4]], [0], [self.s[5]], [0], [self.s[2]]]
+                )
 
                 # print(f"{self.id} is walking.")
 
-        # counter and trajectories.
+        # Drawing
+        self.update_drawing(Fres=(Fx, Fy))
+
         self.i += 1
         self.i = self.i % self.traj.shape[1]
 
@@ -1888,3 +1948,165 @@ class InvPendulumBicycle(TwoDBicycle):
 
         self.zrid[0] = not cvwalk and (self.zrid[1] and cdelta or self.zrid[0])
         self.zrid[1] = not self.zrid[0]
+
+
+class BalancingRiderBicycle(Vehicle):
+    """A bicycle with Whipple Carvallo Dynamics."""
+
+    DYNAMICS_TYPE = BalancingRiderDynamics
+    PARAMS_TYPE = BalancingRiderBicycleParameters
+    DRAWING_TYPE = BicycleDrawing2D
+    N_STATES = 8
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "phi[rad]", "deltadot[rad/s]", "phidot[rad/s]"]
+
+    def __init__(self, s0, **kwargs):
+        """Create a Whipple Carvallo dynamics bicycle.
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0, delta0, theta0, deltadot0, thetadot0).
+            x - x-position
+            y - y-position
+            psi - yaw angle
+            v - speed
+            delta - steer angle
+            theta - roll angle
+            ...dot - rate
+        **kwargs
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
+            overwritten by this constructor.
+        """
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
+
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+
+
+class PlanarPointBicycle(Vehicle):
+
+    DYNAMICS_TYPE = PlanarPointDynamics
+    PARAMS_TYPE = PlanarPointBicycleParameters
+    DRAWING_TYPE = BicycleDrawing2D
+
+    """ A bicycle with planarpoint dynamics. 
+    """
+
+    def __init__(self, s0, **kwargs):
+        """Create a planarpoint dynamics bicycle.
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0).
+        **kwargs
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
+            overwritten by this constructor.
+        """
+
+        if len(s0) < self.N_STATES:
+            raise ValueError(f"The initial state s0 has to be size {self.N_STATES} with states {self.STATE_NAMES}.")
+        if len(s0) > self.N_STATES:
+            s0 = s0[:self.N_STATES]
+
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
+
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+
+        # state names
+        self.s_names += [""] * (len(s0) - len(self.s_names))
+
+
+class PlanarBicycle(Vehicle):
+    """A bicycle with planar two-wheeler kinematics."""
+
+    DYNAMICS_TYPE = PlanarTwoWheelerDynamics
+    DRAWING_TYPE = BicycleDrawing2D
+    PARAMS_TYPE = PlanarBicycleParameters
+    N_STATES = 5
+    STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]"]
+
+    def __init__(self, s0, **kwargs):
+        """
+        Create a planar bicycle
+
+        Parameters
+        ----------
+        s0 : array-like
+            Initial state of the bike: (x0, y0, psi0, v0, delta0).
+        **kwargs : TYPE
+            Keyword argument of Vehicle. Note that "dynamics","rep_force_func",
+            "dest_force_func", "dyn_step_func", and "drawing_class" are
+            overwritten by this constructor.
+        """
+
+        assert len(s0) >= 5, (
+            "s0 has to have at least five elements:",
+            " (x, y, psi, v, delta)!",
+        )
+
+        # default parameters
+        kwargs = self.verify_params_class(kwargs)
+
+        Vehicle.__init__(self, s0, **kwargs)
+
+        # init dynamics: Planar dynamics model with Fx/y input
+        self.dynamics = PlanarTwoWheelerDynamics(self)
+        self.dyn_step_func = self.dynamics.step
+
+        # init forces
+        self.rep_force_func = TwoDBicycle.calcRepulsiveForce
+        self.dest_force_func = TwoDBicycle.calcDestinationForce
+
+        # state names
+        self.s_names += ["delta[deg]"]
+        self.s_names += [""] * (len(s0) - len(self.s_names))
+
+
+### Collection of Destination force functions
+def calc_direct_approach_dest_force(Vehicle):
+    """Calculates force vectors from locations in x, y to the current
+    destination.
+
+    Evaluates at all locations in x and y.
+
+    If the road user has a destination queue, this also checks if the
+    current intermediate destination has to be updated to the next one.
+
+
+    Parameters
+    ----------
+    x : Tuple of floats
+        x locations for potential evaluation. len(x) must be equal len(y)
+    y : Tuple of floats
+        y locations for potential evaluation. len(x) must be equal len(y)
+
+    """
+    if Vehicle.destqueue is not None:
+        Vehicle.updateDestination()
+
+    vd, ddest = Vehicle.updateNavState(Vehicle.dest[2])
+
+    if ddest > 0:
+        Fx = -vd * (Vehicle.s[0] - Vehicle.dest[0]) / ddest
+        Fy = -vd * (Vehicle.s[1] - Vehicle.dest[1]) / ddest
+    else:
+        Fx = 0
+        Fy = 0
+
+    return (Fx, Fy)
+
+
+def calc_spline_dest_force(x, y):
+    pass
