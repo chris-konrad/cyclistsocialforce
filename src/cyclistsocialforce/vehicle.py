@@ -36,8 +36,8 @@ from cyclistsocialforce.vizualisation import (
 
 from cyclistsocialforce.dynamics import (
     Dynamics,
-    ParticleDynamics,
-    WhippleCarvalloDynamics,
+    PlanarPointDynamics,
+    BalancingRiderDynamics,
     PlanarTwoWheelerDynamics,
     PIDcontroller
 )
@@ -1953,7 +1953,7 @@ class InvPendulumBicycle(TwoDBicycle):
 class BalancingRiderBicycle(Vehicle):
     """A bicycle with Whipple Carvallo Dynamics."""
 
-    DYNAMICS_TYPE = Dynamics
+    DYNAMICS_TYPE = BalancingRiderDynamics
     PARAMS_TYPE = BalancingRiderBicycleParameters
     DRAWING_TYPE = BicycleDrawing2D
     N_STATES = 8
@@ -1983,10 +1983,6 @@ class BalancingRiderBicycle(Vehicle):
 
         Vehicle.__init__(self, s0, **kwargs)
 
-        # init dynamics: Whipple-Carvallo dynamics model with Fx/y input
-        self.dynamics = WhippleCarvalloDynamics(self)
-        self.dyn_step_func = self.dynamics.step
-
         # init forces
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
@@ -1994,7 +1990,7 @@ class BalancingRiderBicycle(Vehicle):
 
 class PlanarPointBicycle(Vehicle):
 
-    DYNAMICS_TYPE = ParticleDynamics
+    DYNAMICS_TYPE = PlanarPointDynamics
     PARAMS_TYPE = PlanarPointBicycleParameters
     DRAWING_TYPE = BicycleDrawing2D
 
@@ -2023,10 +2019,6 @@ class PlanarPointBicycle(Vehicle):
         kwargs = self.verify_params_class(kwargs)
 
         Vehicle.__init__(self, s0, **kwargs)
-
-        # init dynamics: particle dynamics model with Fx/y input
-        self.dynamics = ParticleDynamics(self)
-        self.dyn_step_func = self.dynamics.step
 
         # init forces
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce

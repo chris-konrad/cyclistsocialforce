@@ -15,11 +15,11 @@ import cv2
 from math import sqrt, floor, ceil
 
 import cyclistsocialforce.config as cfg
-from cyclistsocialforce.vehicle import Bicycle, TwoDBicycle, InvPendulumBicycle, WhippleCarvalloBicycle
+from cyclistsocialforce.vehicle import Bicycle, TwoDBicycle, InvPendulumBicycle, BalancingRiderBicycle
 from cyclistsocialforce.parameters import (
     BicycleParameters,
     InvPendulumBicycleParameters,
-    WhippleCarvalloBicycleParameters,
+    BalancingRiderBicycleParameters,
 )
 from cyclistsocialforce.intersection import SocialForceIntersection
 from cyclistsocialforce.utils import angleSUMOtoSFM
@@ -303,7 +303,7 @@ class SUMOScenario:
         self.t_s = t_s
 
         # parse bicyle type
-        self.BICYCLE_TYPES = ("Bicycle", "TwoDBicycle", "InvPendulumBicycle", 'WhippleCarvalloBicycle')
+        self.BICYCLE_TYPES = ("Bicycle", "TwoDBicycle", "InvPendulumBicycle", 'BalancingRiderBicycle')
         assert bicycle_type in self.BICYCLE_TYPES, (
             f"Parameter bicycle_type has to be any of "
             f"{self.BICYCLE_TYPES}, instead it was '{bicycle_type}'."
@@ -425,8 +425,8 @@ class SUMOScenario:
                     unew = InvPendulumBicycle(s, id=str(i), route=route, params=params)
                 elif self.bicycle_type == self.BICYCLE_TYPES[3]:
                     s.append(0.0)
-                    params = WhippleCarvalloBicycleParameters(t_s=self.t_s)
-                    unew = WhippleCarvalloBicycle(s, id=str(i), route=route, params=params)
+                    params = BalancingRiderBicycleParameters(t_s=self.t_s)
+                    unew = BalancingRiderBicycle(s, id=str(i), route=route, params=params)
                 else:
                     raise ValueError(
                         f"Unknown bicycle type '{self.bicycle_type}'! Known"
