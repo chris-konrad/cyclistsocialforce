@@ -12,7 +12,7 @@ This script:
     
 To run, execute this script and then hit play in the SUMO GUI. 
 
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 
 import os

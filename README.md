@@ -9,11 +9,11 @@ The model is developed for our contribution to the [2023 Bicycle and Motorcycle 
 
 We provide seven different bicycle models:
 
-- `vehicle.Bicycle`: Simple two-wheeler kinematics without wheel slip. (Model from [v0.1.x](https://github.com/chrismo-schmidt/cyclistsocialforce/releases/tag/v0.1.1-bmd2023extendedabstract))
+- `vehicle.Bicycle`: Simple two-wheeler kinematics without wheel slip. (Model from [v0.1.x](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v0.1.1-bmd2023extendedabstract))
 
-- `vehicle.InvertedPendulumBicycle`: Two-Wheeler kinematics with an inverted pendulum on top to simulate bicycle roll. A nested control loop ensures that the bicycle stays upright while following the desired yaw angle given by the social force. Additionally, the model includes new repulsive force field shapes and path planning based destination forces. Introduced with [v.1.1.0](https://github.com/chrismo-schmidt/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
+- `vehicle.InvertedPendulumBicycle`: Two-Wheeler kinematics with an inverted pendulum on top to simulate bicycle roll. A nested control loop ensures that the bicycle stays upright while following the desired yaw angle given by the social force. Additionally, the model includes new repulsive force field shapes and path planning based destination forces. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
-- `vehicle.TwoDBicycle`: Same two-wheeler kinematics as `Bicycle`, but with the modified repulsive force fields and path planning of InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chrismo-schmidt/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
+- `vehicle.TwoDBicycle`: Same two-wheeler kinematics as `Bicycle`, but with the modified repulsive force fields and path planning of InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
 - `vehicle.WhippleCarvalloBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) with full-state feedback control. Inherits path-planning and repulsive forces from `vehicle.TwoDBicycle`
 
@@ -90,12 +90,12 @@ python demoCSFxSUMO-large.py
 
 ## Authors
 
-- Christoph M. Konrad (formerly Schmidt), c.m.schmidt@tudelft.nl
+- Christoph M. Konrad (formerly Schmidt), c.m.konrad@tudelft.nl
 
 License
 --------------------
 
-This package is licensed under the terms of the [MIT license](https://github.com/chrismo-schmidt/cyclistsocialforce/blob/main/LICENSE).
+This package is licensed under the terms of the [MIT license](https://github.com/chris-konrad/cyclistsocialforce/blob/main/LICENSE).
 
 ## Citation
 

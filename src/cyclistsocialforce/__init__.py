@@ -2,6 +2,6 @@
 """
 Created on Wed Apr 19 16:47:49 2023
 
-@author: christophschmi
+@author: Christoph Konrad
 """
 
