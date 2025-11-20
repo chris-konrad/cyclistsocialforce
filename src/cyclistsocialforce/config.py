@@ -5,7 +5,7 @@ Created on Wed Nov  8 11:22:09 2023
 Checks SUMO python package availability and provides global variables to
 multiplex between traci and libsumo.
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 # default libsumo preference. Warning: libsumo does not run with sumo-gui

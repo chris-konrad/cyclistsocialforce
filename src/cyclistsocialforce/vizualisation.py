@@ -4,7 +4,7 @@ Created on Thu Oct 12 13:08:17 2023.
 
 Classes and functions for the vizualisation of the simulation.
 
-@author: Christoph M. Schmidt
+@author: Christoph M. Konrad
 """
 
 import numpy as np
@@ -14,29 +14,564 @@ from matplotlib.collections import PolyCollection
 from matplotlib.lines import Line2D
 from pypaperutils.design import TUDcolors
 
-
 from mpl_toolkits.mplot3d.art3d import Line3D, Poly3DCollection
 
+from cyclistsocialforce.parameters import (
+    VehicleDrawingParameters,
+    BikeDrawing2DParameters,
+)
 
-class BicycleDrawing2D:
+
+class VehicleDrawing:
+
+    PARAMS_CLASS = VehicleDrawingParameters
+
+    def __init__(
+        self,
+        ax,
+        vehicle,
+        params=None,
+    ):
+        """Drawing of the peripherals common to all road users"""
+
+        if params is None:
+            self.params = self.PARAMS_CLASS()
+        else:
+            self.params = params
+
+        self.ax = ax
+        self.ghandles = {}
+
+        self.make_drawing(vehicle)
+
+    def make_drawing(self, vehicle):
+        """Create the graphics handles for the elements of the drawing.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        self.make_force_arrows()
+
+        if self.params.draw_trajectory:
+            self.make_trajectory_drawing(vehicle)
+        if self.params.draw_nextdest:
+            self.make_nextdest_drawing(vehicle)
+        if self.params.draw_pastdest:
+            self.make_pastdest_drawing(vehicle)
+        if self.params.draw_destqueue:
+            self.make_destqueue_drawing(vehicle)
+        if self.params.draw_name:
+            self.make_name_drawing(vehicle)
+
+    def make_trajectory_drawing(self, vehicle):
+        """Creates a plot of the past x-y trajectory
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        (self.ghandles["trajectory"],) = self.ax.plot(
+            vehicle.traj[0],
+            vehicle.traj[1],
+            color=self.params.traj_line_color,
+            linewidth=self.params.traj_line_width,
+            animated=self.params.animated,
+        )
+        self.ax.draw_artist(self.ghandles["trajectory"])
+
+    def make_nextdest_drawing(self, vehicle):
+        """Draw a straigt line to the next destination. Marks the next
+        destination with an x.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        (self.ghandles["nextdest-line"],) = self.ax.plot(
+            (vehicle.s[0], vehicle.dest[0]),
+            (vehicle.s[1], vehicle.dest[1]),
+            color="gray",
+            linewidth=1,
+            linestyle="dashed",
+            animated=self.params.animated,
+            zorder=3,
+        )
+        self.ax.draw_artist(self.ghandles["nextdest-line"])
+
+        if not self.params.draw_destqueue:
+            (self.ghandles["nextdest-marker"],) = self.ax.plot(
+                vehicle.dest[0],
+                vehicle.dest[1],
+                marker="x",
+                markersize=5,
+                markeredgecolor=self.params.dest_marker_color_cur,
+                markeredgewidth=2,
+                animated=self.params.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["nextdest-marker"])
+
+    def make_destqueue_drawing(self, vehicle):
+        """Draw markers for the remaining intermediate destinations in the
+        queue.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        if vehicle.destqueue is None:
+            (self.ghandles["destqueue"],) = self.ax.plot(
+                vehicle.dest[0],
+                vehicle.dest[1],
+                marker="x",
+                markersize=5,
+                markeredgecolor=self.params.dest_marker_color_qeu,
+                markeredgewidth=1,
+                animated=self.params.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["destqueue"])
+        else:
+            (self.ghandles["destqueue"],) = self.ax.plot(
+                vehicle.destqueue[vehicle.destpointer :, 0],
+                vehicle.destqueue[vehicle.destpointer :, 1],
+                linestyle="None",
+                marker="x",
+                markersize=5,
+                markeredgecolor=self.params.dest_marker_color_qeu,
+                markeredgewidth=1,
+                animated=self.params.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["destqueue"])
+
+    def make_pastdest_drawing(self, vehicle):
+        """Draw markers for the past destinations.
+
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.params.draw_pastdest and vehicle.destqueue is not None:
+            (self.ghandles["pastdest"],) = self.ax.plot(
+                vehicle.destqueue[: vehicle.destpointer, 0],
+                vehicle.destqueue[: vehicle.destpointer, 1],
+                linestyle="None",
+                marker="x",
+                markersize=5,
+                markeredgecolor="gray",
+                markeredgewidth=1,
+                animated=self.params.animated,
+                zorder=3,
+            )
+            self.ax.draw_artist(self.ghandles["pastdest"])
+
+    def make_name_drawing(self, vehicle):
+        """Draw the name of the vehicle.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        self.ghandles["name"] = self.ax.text(
+            vehicle.s[0],
+            vehicle.s[1] + 1,
+            vehicle.id,
+            color=self.params.name_font_color,
+            fontsize=self.params.name_font_size,
+            animated=self.params.animated,
+            zorder=4,
+        )
+        self.ax.draw_artist(self.ghandles["name"])
+
+    def make_force_arrows(self):
+        """Create a set of lists to storing the handles of force arrows
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+
+        """
+
+
+        if self.params.draw_force_destination:
+            self.force_handle_dest = self.ax.arrow(
+                0,
+                0,
+                0,
+                0,
+                head_width=self.params.force_head_width,
+                head_length=self.params.force_head_length,
+                linewidth=self.params.force_linewidth,
+                edgecolor=self.params.force_color_dest,
+                facecolor=self.params.force_color_dest,
+                animated=self.params.animated,
+                zorder=3,
+            )
+
+        if self.params.draw_force_resulting:
+            self.force_handle_res = self.ax.arrow(
+                0,
+                0,
+                0,
+                0,
+                head_width=self.params.force_head_width,
+                head_length=self.params.force_head_length,
+                linewidth=self.params.force_linewidth,
+                edgecolor=self.params.force_color_res,
+                facecolor=self.params.force_color_res,
+                animated=self.params.animated,
+                zorder=3,
+            )
+
+        if self.params.draw_forces_repulsive:
+            self.force_handles_rep = []
+
+    def update(self, vehicle, Fdest=None, Frep=None, Fres=None):
+        """Updates all elements of the vehicle drawing.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+
+        self.update_forces(vehicle.s, Fdest, Frep, Fres)
+
+        self.update_trajectory_drawing(vehicle)
+        self.update_nextdest_drawing(vehicle)
+        self.update_destqueue_drawing(vehicle)
+        self.update_pastdest_drawing(vehicle)
+        self.update_name_drawing(vehicle)
+
+    def update_trajectory_drawing(self, vehicle):
+        """Update the trajctory drawing
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.params.draw_trajectory:
+            self.ghandles["trajectory"].set_data(
+                vehicle.traj[0, 0 : vehicle.i], vehicle.traj[1, 0 : vehicle.i]
+            )
+            self.ax.draw_artist(self.ghandles["trajectory"])
+
+    def update_nextdest_drawing(self, vehicle):
+        """Update the drawing of the next destinations.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.params.draw_nextdest:
+            if vehicle.destspline is not None:
+                self.ghandles["nextdest-line"].set_data(
+                    (vehicle.destspline[:, 0]),
+                    (vehicle.destspline[:, 1]),
+                )
+            else:
+                self.ghandles["nextdest-line"].set_data(
+                    (vehicle.s[0], vehicle.dest[0]),
+                    (vehicle.s[1], vehicle.dest[1]),
+                )
+            self.ax.draw_artist(self.ghandles["nextdest-line"])
+
+            if not self.params.draw_destqueue:
+                self.ghandles["nextdest-marker"].set_data(
+                    vehicle.dest[0], vehicle.dest[1]
+                )
+                self.ax.draw_artist(self.ghandles["nextdest-marker"])
+
+    def update_destqueue_drawing(self, vehicle):
+        """Update the drawing of the destination queue.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.params.draw_destqueue:
+            if vehicle.destqueue is None:
+                self.ghandles["destqueue"].set_data(
+                    vehicle.dest[0], vehicle.dest[1]
+                )
+            else:
+                self.ghandles["destqueue"].set_data(
+                    vehicle.destqueue[vehicle.destpointer :, 0],
+                    vehicle.destqueue[vehicle.destpointer :, 1],
+                )
+            self.ax.draw_artist(self.ghandles["destqueue"])
+
+    def update_pastdest_drawing(self, vehicle):
+        """Update the drawing of the past destinations
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.params.draw_pastdest:
+            if self.ghandles["pastdest"] is not None:
+                self.ghandles["pastdest"].set_data(
+                    vehicle.destqueue[: vehicle.destpointer, 0],
+                    vehicle.destqueue[: vehicle.destpointer, 1],
+                )
+            self.ax.draw_artist(self.ghandles["pastdest"])
+
+    def update_name_drawing(self, vehicle):
+        """Update the drawing of the vehicle name
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        if self.params.draw_name:
+            self.ghandles["name"].set_position(
+                (vehicle.s[0], vehicle.s[1] + 1)
+            )
+            self.ax.draw_artist(self.ghandles["name"])
+
+    def update_forces(self, s, Fdest=None, Frep=None, Fres=None):
+        """Updates the force vector drawing according to the currently
+        experienced forces.
+
+        Parameters
+        ----------
+        s : array-like, optional
+            First two state of the bicycle (x,y). Not drawn if not specified.
+        Fdest : array-like
+            Destination force given as (Fx, Fy). Not updated if not specified.
+        Frep : array-like
+            List of repulisve forces given as ((Fx1, Fx2, ...) (Fy1, Fy2 ...)).
+            Not updated if not specified.
+        Fres : array-like
+            Resulting force given as (Fx, Fy). Not updated if not specified.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        # repulsive forces
+        if self.params.draw_forces_repulsive and Frep is not None:
+            n = len(Frep[0])
+
+            while len(self.force_handles_rep) < n:
+                self.force_handles_rep.append(
+                    self.ax.arrow(
+                        0,
+                        0,
+                        0,
+                        0,
+                        head_width=self.params.force_head_width,
+                        head_length=self.params.force_head_length,
+                        linewidth=self.params.force_linewidth,
+                        edgecolor=self.params.force_color_res,
+                        facecolor=self.params.force_color_res,
+                        animated=self.params.animated,
+                        zorder=3,
+                    )
+                )
+            if len(self.force_handles_rep) > n:
+                self.force_handle_rep = self.force_handle_rep[:n]
+
+            for a, fx, fy in zip(self.force_handles_rep, Frep[0], Frep[1]):
+                a.set_data(x=s[0], y=s[1], dx=fx, dy=fy)
+                self.ax.draw_artist(a)
+
+        # destination force
+        if self.params.draw_force_destination and Fdest is not None:
+            self.force_handle_dest.set_data(
+                x=s[0], y=s[1], dx=Fdest[0], dy=Fdest[1]
+            )
+            self.ax.draw_artist(self.force_handle_dest)
+
+        # resulting force
+        if self.params.draw_force_resulting and Fres is not None:
+            self.force_handle_res.set_data(
+                x=s[0], y=s[1], dx=Fres[0], dy=Fres[1]
+            )
+            self.ax.draw_artist(self.force_handle_res)
+
+    def set_animated(self, animated):
+        """Set the animation property of the vehicle
+
+        Set to false to prevent the animated elements from disappearing once
+        the animation ends. Set to True to make all elements animated.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.params.animated = animated
+        for key in self.ghandles:
+            self.ghandles[key].set_animated(animated)
+
+
+class CarDrawing2D(VehicleDrawing):
+
+    def __init__(
+        self,
+        ax,
+        car,
+        params=None,
+    ):
+        """Create a 2D Car Drawing made of polygons.
+
+        Parameters
+        ----------
+        ax : Axes
+            Axes where the drawing should be created in.
+        car : cyclistsocialforce.vehicle.StationaryIMPTCCar
+            Car object to be drawn.
+        animated : bool, optional
+            Animate the drawing. The default is False.
+        """
+
+        super().__init__(ax, car, params=params)
+
+        # The function to use floating vehicle edges is implemented but
+        # untested. Setting this to False would actiate it.
+        self.has_fixed_dimensions = True
+
+        self.prototype_keypoints = self.calc_prototype_keypoints(
+            car.params.width, car.params.length
+        )
+
+        self.make_car_polygon(car.s)
+
+    def make_car_polygon(self, s):
+        """Create the polygon collections that make the car drawing.
+
+        Called by the constructor.
+
+        Parameters
+        ----------
+        s : array-like
+            Current car state as returned by car.s.
+
+        Returns
+        -------
+        None.
+
+        """
+        keypoints = self.calc_keypoints(s)
+
+        self.ghandles["car_polygon"] = PolyCollection(
+            (keypoints,),
+            animated=self.params.animated,
+            facecolors="gray",
+            edgecolors="black",
+            zorder=10,
+        )
+        self.ax.add_collection(self.ghandles["car_polygon"])
+
+    def calc_keypoints(self, s):
+        """Calculate the corners of the polygons.
+
+        Uses fixed witdth, length and the current orientation if
+        self.has_fixed_dimesion. Otherwise uses floating cornerns that
+        implicitely determine the orientation and that are expected to be
+        the last 8 entries in s (as returned by StationaryIMPTCCar.s)
+
+        Parameters
+        ----------
+        s : array
+            Car state.
+
+        Returns
+        -------
+        keypoints : List[Array]
+            List of arrays describing the corners of each polygon.
+        """
+        if self.has_fixed_dimensions:
+            R_psi = np.array(
+                [[np.cos(s[2]), -np.sin(s[2])], [np.sin(s[2]), np.cos(s[2])]]
+            )
+            keypoints = R_psi @ self.prototype_keypoints.T + np.array(
+                [[s[0]], [s[1]]]
+            )
+            keypoints = keypoints.T
+        else:
+            keypoints = [np.reshape(s[-8:], (4, 2))]
+            keypoints.append(keypoints[[0, 2], :])
+            keypoints.append(keypoints[[1, 3], :])
+
+        return keypoints
+
+    def calc_prototype_keypoints(self, w, l):
+        return np.array(
+            (
+                (l / 2, w / 2),
+                (-l / 2, w / 2),
+                (-l / 2, -w / 2),
+                (l / 2, -w / 2),
+            )
+        )
+
+    def update(self, car, **kwargs):
+        """Updates all elements of the car drawing.
+
+        Parameters
+        ----------
+        car : cyclistsocialforce.StationaryCar
+            The car from the vehicle module
+        """
+        super().update(car)
+        self.update_car_polygon(car)
+
+    def update_car_polygon(self, car):
+        """Update the car drawing according to the car state.
+
+        Parameters
+        ----------
+        bike : cyclistsocialforce.vehicle.StationaryIMPTCCar
+            Car object whose state the drawing will be updated to.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        keypoints = self.calc_keypoints(car.s)
+
+        self.ghandles["car_polygon"].set_verts((keypoints,))
+        self.ax.draw_artist(self.ghandles["car_polygon"])
+
+
+class BicycleDrawing2D(VehicleDrawing):
+
+    PARAMS_CLASS = BikeDrawing2DParameters
+
     """A 2D drawing of a standard bicyle with rider from bird-eyes view.
 
     TODO: Dimensions and Colors should be specifieable in the BicycleParameters
     object.
     """
 
-    def __init__(
-        self,
-        ax,
-        bike,
-        proj_3d=False,
-        animated=False,
-        color_bike=None,
-        color_rider=None,
-        color_wheels=None,
-        color_head=None,
-        show_roll_indicator=True,
-    ):
+    def __init__(self, ax, bike, params=None):
         """Create a 2D Bicycle Drawing made of polygons.
 
         Parameters
@@ -45,24 +580,15 @@ class BicycleDrawing2D:
             Axes where the drawing should be created in.
         bike : cyclistsocialforce.vehicle.Bicycle
             Bicycle object to be drawn.
+        params : cyclistsocialforce.parameters.BikeDrawing2DParameters, optinl
+            Parameters object. If none is given, initializes the default
+            parameters.
         proj_3d : bool. optinal
             Project the 2D drawing in the ground plane of a 3D plot. The
             default is False.
         animated : bool, optional
             Animate the drawing. The default is False.
-        color_bike : color, optional
-            Matplotlib color specification for the bike frame.
-            The default is None and produces a TU Delft cyan frame.
-        color_rider : color, optional
-            Matplotlib color specification for the rider body/clothes.
-            The default is None and produces TU Delft darkblue clothes.
-        color_wheels : color, optional
-            Matplotlib color specification for the bicycle tires.
-            The default is None and produces black tires.
-        color_head : color, optional
-            Matplotlib color specification for the head/helmet/hair of the
-            rider. The default is None and produces a TU Delft cyan helmet.
-        show_roll_indicator : bool, optional
+        draw_roll_indicator : bool, optional
             Draws a small roll angle indicator (2D: bubble scale, 3D: inv.
             pendulum). This only has an effect if the bicycle is a
             InvPendulumBicycle. The default is True.
@@ -72,73 +598,68 @@ class BicycleDrawing2D:
         None.
 
         """
+        if params is None:
+            params = self.PARAMS_CLASS()
 
-        if show_roll_indicator is True:
-            self.show_roll_indicator = (
+        super().__init__(ax, bike, params=params)
+
+        if self.params.draw_roll_indicator:
+            self.params.draw_roll_indicator = (
                 type(bike).__name__ == "InvPendulumBicycle"
             )
 
-        self.tud_colors = TUDcolors()
+        self.params.l_1 = bike.params.l_1
+        self.params.l_2 = bike.params.l_2
 
-        if color_bike is None:
-            color_bike = self.tud_colors.get("cyaan")
-        if color_rider is None:
-            color_rider = self.tud_colors.get("roze")
-        if color_wheels is None:
-            color_wheels = "gray"
-        if color_head is None:
-            color_head = self.tud_colors.get("cyaan")
+        self.make_bicycle_ploygon(bike.s)
 
-        fcolors = [
-            color_wheels,
-            color_wheels,
-            color_bike,
-            color_bike,
-            color_rider,
-            color_rider,
-            color_rider,
-            color_head,
-        ]
-        ecolors = ["none"] * 8
-        if self.show_roll_indicator:
-            if proj_3d:
-                fcolors.append("black")
-                ecolors.append("none")
-            else:
-                fcolors.append("none")
-                fcolors.append(self.tud_colors.get("rood"))
-                ecolors.append("black")
-                ecolors.append("none")
+    def make_bicycle_ploygon(self, s):
+        """Create the polygon collections that make the bike drawing.
 
-        self.l_1 = bike.params.l_1
-        self.l_2 = bike.params.l_2
-        self.ax = ax
-        self.animated = animated
-        self.proj_3d = proj_3d
-        self.fcolors = fcolors
-        self.ecolors = ecolors
+        Called by the constructor.
 
-        keypoints = self.calc_keypoints(bike.s)
+        Parameters
+        ----------
+        s : array-like
+            Current bicycle state as returned by bicycle.s.
 
-        if proj_3d:
-            self.p = Poly3DCollection(
+        Returns
+        -------
+        None.
+
+        """
+        keypoints = self.calc_keypoints(s)
+
+        if self.params.proj_3d:
+            self.ghandles["bike_polygon"] = Poly3DCollection(
                 keypoints,
-                facecolors=fcolors,
-                edgecolors=ecolors,
+                facecolors=self.params.fcolors_riderbike,
+                edgecolors=self.params.ecolors_riderbike,
                 animated=False,
             )
-            ax.add_collection3d(self.p, zs=0)
+            self.ax.add_collection3d(self.p, zs=0)
         else:
-            self.p = PolyCollection(
+            self.ghandles["bike_polygon"] = PolyCollection(
                 keypoints,
-                animated=animated,
-                facecolors=fcolors,
-                edgecolors=ecolors,
+                animated=self.params.animated,
+                facecolors=self.params.fcolors_riderbike,
+                edgecolors=self.params.ecolors_riderbike,
                 zorder=10,
             )
-            ax.add_collection(self.p)
+            self.ax.add_collection(self.ghandles["bike_polygon"])
 
-    def update(self, bike):
+    def update(self, bicycle, Fdest=None, Frep=None, Fres=None):
+        """Updates all elements of the bicycle drawing.
+
+        Parameters
+        ----------
+        bicycle : cyclistsocialforce.Bicycle
+            Any bicycle from the vehicle module
+        """
+        super().update(bicycle, Fdest=Fdest, Frep=Frep, Fres=Fres)
+        self.update_bike_polygon(bicycle)
+
+    def update_bike_polygon(self, bike):
         """Update the drawing according to the bicycles state.
 
         Parameters
@@ -154,18 +675,23 @@ class BicycleDrawing2D:
 
         keypoints = self.calc_keypoints(bike.s)
 
-        self.p.set_verts(keypoints)
-        if self.show_roll_indicator:
+        self.ghandles["bike_polygon"].set_verts(keypoints)
+        if self.params.draw_roll_indicator:
             if abs(bike.s[5]) > np.pi / 4:
-                self.ecolors[-2] = self.tud_colors.get("rood")
+                self.params.ecolors_riderbike[-2] = self.params.tud_colors.get(
+                    "rood"
+                )
             else:
-                self.ecolors[-2] = "black"
-            self.p.set(facecolor=self.fcolors, edgecolor=self.ecolors)
+                self.params.ecolors_riderbike[-2] = "black"
+            self.ghandles["bike_polygon"].set(
+                facecolor=self.params.fcolors_riderbike,
+                edgecolor=self.params.ecolors_riderbike,
+            )
 
-        if self.proj_3d:
-            self.p.do_3d_projection()
+        if self.params.proj_3d:
+            self.ghandles["bike_polygon"].do_3d_projection()
         else:
-            self.ax.draw_artist(self.p)
+            self.ax.draw_artist(self.ghandles["bike_polygon"])
 
     def calc_keypoints(self, s, w=0.45):
         """Calculate the corners of the polygons.
@@ -185,6 +711,9 @@ class BicycleDrawing2D:
             List of arrays describing the corners of each polygon.
 
         """
+        if len(s) < 6:
+            s = np.append(s, [0] * (6 - len(s)))
+
         R_psi = np.array(
             [[np.cos(s[2]), -np.sin(s[2])], [np.sin(s[2]), np.cos(s[2])]]
         )
@@ -200,10 +729,10 @@ class BicycleDrawing2D:
 
         rwhl = np.array(
             [
-                [-self.l_1 - 0.65 / 2, 0.03],
-                [-self.l_1 + 0.65 / 2, 0.03],
-                [-self.l_1 + 0.65 / 2, -0.03],
-                [-self.l_1 - 0.65 / 2, -0.03],
+                [-self.params.l_1 - 0.65 / 2, 0.03],
+                [-self.params.l_1 + 0.65 / 2, 0.03],
+                [-self.params.l_1 + 0.65 / 2, -0.03],
+                [-self.params.l_1 - 0.65 / 2, -0.03],
             ]
         )
 
@@ -214,7 +743,7 @@ class BicycleDrawing2D:
                 [0.65 / 2, -0.03],
                 [-0.65 / 2, -0.03],
             ]
-        ).T + np.array([[self.l_2], [0]])
+        ).T + np.array([[self.params.l_2], [0]])
 
         hbar = R_delta @ np.array(
             [
@@ -223,7 +752,7 @@ class BicycleDrawing2D:
                 [-0.06 / 2, -w / 2],
                 [-0.14 / 2, -w / 2],
             ]
-        ).T + np.array([[self.l_2], [0]])
+        ).T + np.array([[self.params.l_2], [0]])
 
         hbar_temp = R_delta @ np.array(
             [
@@ -232,14 +761,14 @@ class BicycleDrawing2D:
                 [-0.06 / 2, -w / 2 + 0.07],
                 [-0.14 / 2, -w / 2 + 0.07],
             ]
-        ).T + np.array([[self.l_2], [0]])
+        ).T + np.array([[self.params.l_2], [0]])
 
         frme = np.array(
             [
-                [-self.l_1, 0.02],
-                [self.l_2, 0.02],
-                [self.l_2, -0.02],
-                [-self.l_1, -0.02],
+                [-self.params.l_1, 0.02],
+                [self.params.l_2, 0.02],
+                [self.params.l_2, -0.02],
+                [-self.params.l_1, -0.02],
             ]
         )
 
@@ -247,8 +776,8 @@ class BicycleDrawing2D:
             [
                 [-0.2 * np.sin(s[4] / 2) + 0.1, 0.2 * np.cos(s[4] / 2)],
                 [0.2 * np.sin(s[4] / 2) + 0.1, -0.2 * np.cos(s[4] / 2)],
-                [-0.75 * self.l_1, -0.15],
-                [-0.75 * self.l_1, 0.15],
+                [-0.75 * self.params.l_1, -0.15],
+                [-0.75 * self.params.l_1, 0.15],
             ]
         )
 
@@ -282,14 +811,14 @@ class BicycleDrawing2D:
             keypoints[i] = keypoints[i].T
 
             # if 3d, add zeros for z-axis.
-            if self.proj_3d:
+            if self.params.proj_3d:
                 keypoints[i] = np.concatenate(
                     (keypoints[i], np.array([[0], [0], [0], [0]])), axis=1
                 )
 
         # if 3d, additionally create a stylized 3d penulum to the 2d drawing.
-        if self.show_roll_indicator:
-            if self.proj_3d:
+        if self.params.draw_roll_indicator:
+            if self.params.proj_3d:
                 pend = R_psi @ np.array(
                     [
                         [-0.1, 0],

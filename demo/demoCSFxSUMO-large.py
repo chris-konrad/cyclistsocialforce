@@ -12,7 +12,7 @@ This script:
     
 To run, execute this script and then hit play in the SUMO GUI. 
 
-@author: Christoph Schmidt
+@author: Christoph Konrad
 """
 
 import os
@@ -82,16 +82,16 @@ def generateRoutes():
             file=routefile,
         )
 
-        vid = 0
+        id = 0
         for i in range(t):
             for j in range(r):
                 if demand[i, j]:
                     print(
                         '    <vehicle id="b%i" type="bike" route="r%i" '
-                        'depart="%i" />' % (vid, j, i),
+                        'depart="%i" />' % (id, j, i),
                         file=routefile,
                     )
-                vid += 1
+                id += 1
 
         print("</routes>", file=routefile)
 
