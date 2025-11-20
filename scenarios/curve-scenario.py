@@ -10,7 +10,7 @@ import numpy as np
 
 from scipy import interpolate
 from cyclistsocialforce.scenario import Scenario
-from cyclistsocialforce.vehicle import WhippleCarvalloBicycle
+from cyclistsocialforce.vehicle import BalancingRiderBicycle
 from cyclistsocialforce.parameters import RoadElementParameters
 from cyclistsocialforce.intersection import (
     RoadEdge,
@@ -39,8 +39,8 @@ class CurveScenario(Scenario):
                                            animate=True, axes=self.ax)
     
         # create a bike and att ot the intersection.
-        b = WhippleCarvalloBicycle(
-            (0, -5, np.pi / 2, 5, 0, 0), vid="WhippleCarvalloBike", saveForces=True
+        b = BalancingRiderBicycle(
+            (0, -5, np.pi / 2, 5, 0, 0), vid="BalancingRiderBike", saveForces=True
         )
         b.params.v_desired_default = 4.0
         destx, desty = self.segs.get_destinations_from_segments()

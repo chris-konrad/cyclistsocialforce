@@ -7,17 +7,17 @@ The model supports co-simulation with [Eclipse SUMO ](https://eclipse.dev/sumo/)
 
 The model is developed for our contribution to the [2023 Bicycle and Motorcycle Dynamics Conference, 18-20 October 2023, Delft, Netherlands](https://dapp.orvium.io/deposits/649d4037c2c818c6824899bd/view), in the context of my PhD project at TU Delft. Refer to our conference proceedings preprint for more explanation. If you use this model in your research, please cite it as indicted below. 
 
-We provide seven different bicycle models:
+We provide seven different cyclist models that describe bicycle and rider:
 
-- `vehicle.Bicycle`: Simple two-wheeler kinematics without wheel slip. (Model from [v0.1.x](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v0.1.1-bmd2023extendedabstract))
+- `vehicle.Bicycle`: Simple two-wheeler kinematics without wheel slip and P controller as rider (Model from [v0.1.x](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v0.1.1-bmd2023extendedabstract)).
 
 - `vehicle.InvertedPendulumBicycle`: Two-Wheeler kinematics with an inverted pendulum on top to simulate bicycle roll. A nested control loop ensures that the bicycle stays upright while following the desired yaw angle given by the social force. Additionally, the model includes new repulsive force field shapes and path planning based destination forces. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
 - `vehicle.TwoDBicycle`: Same two-wheeler kinematics as `Bicycle`, but with the modified repulsive force fields and path planning of InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
-- `vehicle.WhippleCarvalloBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) with full-state feedback control. Inherits path-planning and repulsive forces from `vehicle.TwoDBicycle`
+- `vehicle.BalancingRiderBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) with full-state feedback control. Inherits path-planning and repulsive forces from `vehicle.TwoDBicycle`
 
-- `vehicle.ParticleBicycle`: A simple model of a bicycle as a mass-less particle.
+- `vehicle.PlanarPointBicycle`: A simple model of bicycle and rider as mass-less point in the 2D plane and full-state feedback control.
 
 - `vehicle.PlanarBicycle`: Simple two-wheeler kinematics without wheel slip. (UNDER DEVELOPMENT)
 

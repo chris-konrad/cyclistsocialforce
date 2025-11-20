@@ -1994,11 +1994,11 @@ class PlanarPointBicycle(Vehicle):
     PARAMS_TYPE = PlanarPointBicycleParameters
     DRAWING_TYPE = BicycleDrawing2D
 
-    """ A bicycle with particle dynamics. 
+    """ A bicycle with planarpoint dynamics. 
     """
 
     def __init__(self, s0, **kwargs):
-        """Create a particle dynamics bicycle.
+        """Create a planarpoint dynamics bicycle.
 
         Parameters
         ----------

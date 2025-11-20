@@ -8,7 +8,7 @@ usage: demoCSFstandalone.py [-h] [-s] [-m]
 optional arguments:
   -h, --help  show this help message and exit
   -s, --save  Save results to ./output/
-  -m, --model Select between 'whipplecarvallo' (default), 'particle', 'invpendulum', and 'planartwowheel'.
+  -m, --model Select between 'balancingrider' (default), 'planarpoint', 'invpendulum', and 'planartwowheel'.
 
 Created on Tue Feb 14 18:26:19 2023
 @author: Christoph Konrad
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 from datetime import datetime
 
-from cyclistsocialforce.vehicle import Bicycle, ParticleBicycle, InvPendulumBicycle, WhippleCarvalloBicycle
+from cyclistsocialforce.vehicle import Bicycle, PlanarPointBicycle, InvPendulumBicycle, BalancingRiderBicycle
 from cyclistsocialforce.intersection import SocialForceIntersection
 from cyclistsocialforce.scenario import Scenario
 
@@ -40,9 +40,9 @@ def parse_args():
     parser.add_argument(
         "-m",
         "--model",
-        default="whipplecarvallo",
+        default="balancingbder",
         type=str,
-        help=("Choose the dynamic model for the simulated bicycles. Can be any of 'whipplecarvallo' (default), 'invpendulum', or 'planartwowheel'."),
+        help=("Choose the dynamic model for the simulated bicycles. Can be any of 'balancingbider' (default), 'invpendulum', or 'planartwowheel'."),
     )
     return parser.parse_args()
 
@@ -51,8 +51,8 @@ def get_bike_type(argstr):
     """ Returns the bike model type selected by the '--model' input argument."""
 
     MODEL_TYPES = {
-        "whipplecarvallo": WhippleCarvalloBicycle,
-        "particle": ParticleBicycle,
+        "balancingbider": BalancingRiderBicycle,
+        "planarpoint": PlanarPointBicycle,
         "invpendulum": InvPendulumBicycle,
         "planartwowheel": Bicycle,
     }
