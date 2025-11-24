@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cyclistsocialforce"
 description = "Microscopic simulation of cyclist interactions on intersections with compatibility to Eclipse SUMO"
 readme = "README.md"
-version = "2.0.0"
+version = "2.0.1"
 license = {file = "LICENSE"}
 authors = [
 	{name = "Christoph M. Konrad", email = "c.m.konrad@tudelft.nl"}

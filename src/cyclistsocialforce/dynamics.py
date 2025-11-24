@@ -1050,7 +1050,7 @@ class PlanarPointDynamics(Dynamics):
         """
 
         # add yaw dynamics
-        A = np.ones((1, 1))
+        A = np.zeros((1, 1))
         B = np.ones((1, 1))
 
         # output
