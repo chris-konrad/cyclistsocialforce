@@ -92,6 +92,7 @@ python demoCSFxSUMO-large.py
 
 - Christoph M. Konrad (formerly Schmidt), c.m.konrad@tudelft.nl
 
+
 License
 --------------------
 
@@ -102,6 +103,7 @@ This package is licensed under the terms of the [MIT license](https://github.co
 If you use this model in your research, please cite it in your publications as:
 
 Schmidt, C., Dabiri, A., Schulte, F., Happee, R. & Moore, J. (2024). Essential Bicycle Dynamics for Microscopic Traffic Simulation: An Example Using the Social Force Model [version 2; peer reviewed]. *The Evolving Scholar - BMD 2023, 5th Edition*. https://doi.org/10.59490/65a5124da90ad4aecf0ab147
+
 
 ## Bibliography
 
