@@ -12,12 +12,16 @@ import control as ct
 import warnings
 
 from cyclistsocialforce.utils import thresh
+from cyclistsocialforce.controlbehavior import PoleModel
+from cyclistsocialforce.data.bicycleparams.balanceassist_bikeparams import balanceassistv1_with_averagerider    
 from pypaperutils.design import TUDcolors
+
 
 from bicycleparameters.parameter_dicts import meijaard2007_browser_jason
 from bicycleparameters.parameter_sets import Meijaard2007ParameterSet
 from bicycleparameters.models import Meijaard2007Model
 
+import importlib.resources as resources
 
 class VehicleDrawingParameters:
     """Class storing and maintaining the parameters for a vehicle drawing.
@@ -1210,13 +1214,17 @@ class PlanarBicycleParameters(BicycleParameters):
 class BalancingRiderBicycleParameters(BicycleParameters):
     
     def __init__(self, 
-                 bicycleParameterDict = meijaard2007_browser_jason, 
-                 poles = (-3.3+9.5j, -3.3-9.5j, -1.3+2.5j, -1.3-2.5j, -4.0),
+                 bicycleParameterDict = balanceassistv1_with_averagerider, 
+                 poles = None,
+                 gains = None,
+                 controlparam_filename = 'BR1_ImRe5GivenV_pole-model-params.yaml',
+                 stochastic_control_behavior = False,
+                 controlparam_resampling_speedthresh = 0.8333,
+                 controlparam_polemodel_component = 0,
                  p_dist_roll = 0.00,
                  p_dist_steer = 0.00,
                  T_dist_roll = 9000,
                  T_dist_steer = 1000,
-                 gains = None,
                  **kwargs):
         """
         Generate a parameters object for the Whipple-Carvallo Bicycle.
@@ -1226,12 +1234,34 @@ class BalancingRiderBicycleParameters(BicycleParameters):
         bicycleParameterDict : dict, optional
             Dictionary with bicycle parameters from 
             bicycleparameters.parameter_dicts. The default is 
-            bicycleparameters.parameter_dicts.meijaard2007_browser_jason.
-        poles : array-like, optional
-            Pole locations of the Full-state-feedback Whipple-Carvallo model. 
-            The default is (-18 + 0j, -19 + 0, -20 + 0j, -1.2240726404163056+
-            1.2879634520488243j, -1.2240726404163056-1.2879634520488243j), 
-            which was obtained from pilot calibration tests. 
+            balanceassistv1_with_averagerider. 
+        poles : tuple, optional
+            Use the given poles for the Balancing Rider control model. If given, 
+            the specified control model parameters (controlparam_filename) are ignored.
+        gains : tuple, optional
+            Use the given gains for the Balancing Rider control model. If given, 
+            the specified control model parameters (controlparam_filename) are ignored.
+        stochastic_control_behavior : bool, optional
+            If True, new Balancing Rider control parameters (aka poles) are sampled 
+            once the current speed is more then controlparam_resampling_speedthresh
+            different from the last update. If False, the mean pole locations of 
+            Balancing Rider control model component controlparam_polemodel_component 
+            are used. Default is False. 
+        controlparam_filename : str, optional
+            The name of the Balancing Rider control model parameters (aka pole model).
+            Model parameter files are stored as .yaml in /data/balancingriderparams/.
+            Choose one of the available yaml filenames. The default is 
+            BR1_ImRe5GivenV_pole-model-params.yaml. 
+        controlparam_resampling_speedthresh : bool, optional
+            The threshold of difference between the current speed (m/s) and the speed at the
+            last update for updating the Balancing Rider control parameters. Only 
+            used if stochastic_control_behavior is True. The default is 0.833 m/s, 
+            corresponding to the 3 km/h speed range of the samples used for training
+            the pole models. 
+        controlparam_polemodel_component : int, optional
+            The Balancing Rider control model component (aka component of GMM pole model)
+            used to extract the mean pole location. Only used if stochastic_control_behavior is False.
+            The default is 0.
         p_dist_roll : float, optional
             Probability p of a roll torque disturbance occuring at any given 
             time step. The default is 0.00.
@@ -1271,14 +1301,26 @@ class BalancingRiderBicycleParameters(BicycleParameters):
         self.g = p.parameters["g"]
         
         #control parameters
-        self.poles = poles
-        self.gains = gains
+        self.stochastic_control_behavior = stochastic_control_behavior
+        self.controlparam_filename = controlparam_filename
+        self.controlparam_resampling_speedthresh = controlparam_resampling_speedthresh
+        self.controlparam_polemodel_component = controlparam_polemodel_component
+
+        if poles is None and gains is None:
+            self.controlparam_fix = False
+            self._load_controlbehavior_model()
+            self.self.v_last_update = -10000
+        else:
+            self.controlparam_fix = True
+            self.poles = poles
+            self.gains = gains
         
         #noise / disturbance parameters
         self.p_dist_roll = p_dist_roll
         self.p_dist_steer = p_dist_steer
         self.T_dist_roll = T_dist_roll
         self.T_dist_steer = T_dist_steer
+        
         
     def get_state_space_matrices(self, v):
         """
@@ -1297,6 +1339,74 @@ class BalancingRiderBicycleParameters(BicycleParameters):
         """
         
         return self.bp_model.form_state_space_matrices(v=v)
+    
+
+    def _load_controlbehavior_model(self):
+
+        modeldirstr = 'data.balancingriderparams'
+        
+        filepath_model = resources.files(modeldirstr).joinpath(self.controlparam_filename)
+
+        # Handle file not found
+        if not filepath_model.exists():
+            modeldir = resources.files(modeldirstr)
+            available_files = [f.name for f in modeldir.iterdir() if f.suffix == '.yaml']
+
+            msg = f"Couldn't find Balancing Rider Control Behavior model {self.controlparam_filename} in {modeldirstr}."
+
+            if available_files:
+                msg += f"Available models are: {available_files}"
+            else:
+                msg += f"The model directory does not contain any model param file!"
+            
+            raise FileNotFoundError(msg)
+        
+        self.polemodel = PoleModel.import_from_yaml(filepath_model)
+
+        if not self.stochastic_control_behavior:
+            self.polefuncs = self.polemodel.get_component_mean_function()
+        else:
+            if self.controlparam_polemodel_component >= self.polemodel.gmm_.n_components:
+                raise ValueError((f"Balancing Rider Control Behavior model {self.controlparam_filename} "
+                                  f"has only {self.polemodel.gmm_.n_components} components but " 
+                                  f"controlparam_polemodel_component is set to {self.controlparam_polemodel_component}! "
+                                  f"Set controlparam_polemodel_component to [0, {self.polemodel.gmm_.n_components-1}]"))
+
+
+    def update_control_params(self, v):
+        """ Update the control parameter (aka self.poles) of the Balancing Rider control model for the
+        given speed. Distinguishes 2 cases:
+
+        Case 1: stochastic_rider_behavior = True
+            If the current speed differs more then controlparam_resampling_speedthresh from previous speed, 
+            sample new poles from the stochastic model. The new poles are independent of the previous poles. 
+        Case 2: stochastic_rider_behavior = True
+            Upates the poles according to the  the mean pole location of component controlparam_polemodel_component 
+            for the given speed. 
+
+        Use self.stochasic_rider_behavior, self.controlparam_resampling_speedthresh, and self.controlparam_polemodel_component 
+        to control the behavior of this function or choose the parameters appropriately during creation of the 
+        BalancingRiderParameters object. 
+
+        Parameters
+        ----------
+        v : float
+            Current speed of the cyclists
+        """
+        
+        if not self.controlparam_fix:
+            if self.stochastic_rider_behavior:
+                if v - self.v_last_update > self.controlparam_resampling_speedthresh:
+                    self.poles = self.polemodel.sample_poles(n_samples=1, X_given=v)
+                    self.v_last_update = v
+            else:
+                polefeatures = self.polefuncs[self.controlparam_polemodel_component].predict(v)
+                self.poles = [polefeatures[0]]
+                i=1
+                while i < len(polefeatures):
+                    self.poles.append(polefeatures[i]+1j*polefeatures[i+1])
+                    i += 2
+                self.v_last_update = v
 
 
 class InvPendulumBicycleParameters(BicycleParameters):
