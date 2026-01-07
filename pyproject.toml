@@ -25,6 +25,8 @@ dependencies = [
 	"bicycleparameters",
 	"datetime",
 	"sympy",
+	"pandas", 
+	"scikit-learn"
 ]
 	
 [tool.setuptools.packages.find]
