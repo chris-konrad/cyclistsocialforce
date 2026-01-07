@@ -288,8 +288,9 @@ class BalancingRiderDynamics(Dynamics):
 
     def __init__(self, bicycle):
 
+        self.params = bicycle.params
         self.bp_model = bicycle.params.bp_model
-        self._config_gains_and_poles(bicycle.params)
+        self._config_gains_and_poles()
             
         # get geometry parameters
         w = self.bp_model.parameter_set.parameters["w"]
@@ -299,11 +300,6 @@ class BalancingRiderDynamics(Dynamics):
         # pre-calc yaw state matrix coefficients
         self.A41_over_v = coslam / w
         self.A43 = coslam * c / w
-
-        # parameters
-        self.t_s = bicycle.params.t_s
-        self.a_max = bicycle.params.a_max
-        self.v_max = bicycle.params.v_max_riding
 
         # initialize state space system
         self.x, self.v = self._transform_state_csf2dynamics(bicycle.s)
@@ -403,28 +399,19 @@ class BalancingRiderDynamics(Dynamics):
         return state_dyn, state_csf[3]
         
 
-    def _config_gains_and_poles(self, params):
+    def _config_gains_and_poles(self):
         """ Configure if dynamics are defined by desired gains or desired poles. Desired poles overwrite desired gains.
         """
         
         self.from_gains = False
-        self.desired_gains = None
-        self.desired_poles = None
 
-        if hasattr(params, 'gains'):
-            if not params.gains is None:
+        if hasattr(self.params, 'gains'):
+            if not self.params.gains is None:
                 self.from_gains = True
-                self.desired_gains = params.gains
         
-        if hasattr(params, 'poles'):
-            if not params.poles is None:
+        if hasattr(self.params, 'poles'):
+            if not self.params.poles is None:
                 self.from_gains = False
-                self.desired_poles = params.poles
-
-        if (self.desired_gains is None) and (self.desired_poles is None):
-            msg = ("The BicycleParameter object neither defines desired gains nor desired poles! Make sure that"
-                   "'params' has a 'gains' or a 'poles' attribute and that at least one of them is not 'None'.")
-            raise RuntimeError(msg)
         
 
     def _make_eoms_set_whipplecarvallo(self):
@@ -617,12 +604,13 @@ class BalancingRiderDynamics(Dynamics):
         """
 
         if self.from_gains:
-            return self.desired_gains
+            return self.params.gains
         else:
+            self.params.update_control_params(v)
             A, B, C, D = self.get_statespace_matrices(v)
             _, gains = from_pole_placement(
                 A, B[:, 1][:, np.newaxis], C, D[:, 1][:, np.newaxis],
-                self.desired_poles)
+                self.params.poles)
             
             return gains[0]
 
@@ -653,10 +641,10 @@ class BalancingRiderDynamics(Dynamics):
 
         # acceleration
         a = self.speed_controller.step(vd - self.v)
-        a = thresh(a, self.a_max)
+        a = thresh(a, self.params.a_max)
 
         # integrate speed
-        v = thresh(self.v + self.t_s * a, self.v_max)
+        v = thresh(self.v + self.params.t_s * a, self.params.v_max_riding)
 
         return v
     
@@ -700,10 +688,10 @@ class BalancingRiderDynamics(Dynamics):
         #integration of lateral dynamics
 
         def residual(x_next):
-            return self.eval_lat_residual(gains, inputs, self.x, x_next, (v+bicycle.s[3])/2, self.t_s).flatten()
+            return self.eval_lat_residual(gains, inputs, self.x, x_next, (v+bicycle.s[3])/2, self.params.t_s).flatten()
 
         def jacobian(x_next):
-            return self.eval_lat_jacobian(gains, inputs, self.x, x_next, (v+bicycle.s[3])/2, self.t_s)
+            return self.eval_lat_jacobian(gains, inputs, self.x, x_next, (v+bicycle.s[3])/2, self.params.t_s)
         
         sol = root(residual, self.x, jac=jacobian, method='lm')
         if not sol.success:
