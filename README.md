@@ -99,6 +99,8 @@ This package is licensed under the terms of the [MIT license](https://github.co
 
 The pole model parameters under `src/cyclistsocialforce/data/balancingriderparams/` are a copy of the parameters published in [10.4121/f881dd80-b9f5-4322-9fd5-192034c9717f](https://doi.org/10.4121/f881dd80-b9f5-4322-9fd5-192034c9717f), licensced CC-BY.
 
+The bicycle parameters in `src/cyclistsocialforce/data/bicycleparams/` are derived from data provided by Jason Moore in moorepants/BicycleParameters, licensed under the [BSD-2-clause](https://github.com/chris-konrad/cyclistsocialforce/tree/main/src/cyclistsocialforce/data/bicycleparams/LICENSE.txt) license.
+
 ## Citation
 
 If you use this model in your research, please cite it in your publications as:
