@@ -93,10 +93,11 @@ python demoCSFxSUMO-large.py
 - Christoph M. Konrad (formerly Schmidt), c.m.konrad@tudelft.nl
 
 
-License
---------------------
+## License
 
 This package is licensed under the terms of the [MIT license](https://github.com/chris-konrad/cyclistsocialforce/blob/main/LICENSE).
+
+The pole model parameters under `src/cyclistsocialforce/data/balancingriderparams/` are a copy of the parameters published in [10.4121/f881dd80-b9f5-4322-9fd5-192034c9717f](https://doi.org/10.4121/f881dd80-b9f5-4322-9fd5-192034c9717f), licensced CC-BY.
 
 ## Citation
 

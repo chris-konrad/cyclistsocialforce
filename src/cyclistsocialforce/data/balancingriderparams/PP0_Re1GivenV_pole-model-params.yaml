@@ -1,0 +1,58 @@
+gmm_data:
+  covariance_type: full
+  covariances:
+  - - - 1.0258986139983088
+      - 0.1996416346531511
+    - - 0.1996416346531511
+      - 0.9307918234336277
+  k_crossval: 10
+  means:
+  - - 0.007112177629769754
+    - 0.006024367067497574
+  n_components: 1
+  n_features: 2
+  n_samples_test: 31
+  n_samples_train: 123
+  scores_test:
+    AIC: 7.00426448052154
+    BIC: 3.0042644805215426
+    NLL: 1.5021322402607713
+  scores_val:
+    AIC: 6.808887898887599
+    BIC: 2.8088878988876
+    NLL: 1.4044439494438
+  weights:
+  - 1.0
+metadata:
+  data_created: '2025-11-25 12:35:15.193525'
+preprocessing_pipeline:
+  log_transform: true
+  log_transform_params:
+    a:
+    - - 1.5892633741535083
+    log_transform_features:
+    - 1
+    sign:
+    - - -1.0
+  normalize: true
+  power_transform: yeo-johnson
+  power_transform_params:
+    lambdas:
+    - -0.091017781186249
+    - 1.2804412344106904
+  standard_scaler_params:
+    mean:
+    - 1.309668100772386
+    - 1.0271525113199182
+    n_samples_seen: 154
+    scale:
+    - 0.13815516948102777
+    - 0.8591505151317962
+presets:
+  feature_set: Re1GivenV
+  features:
+  - v_mean
+  - p0_real
+  gridsearch_selection_metric: NLL
+  n_gmm_inits: 100
+  riderbike_model: PP0
