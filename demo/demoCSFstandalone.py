@@ -40,9 +40,9 @@ def parse_args():
     parser.add_argument(
         "-m",
         "--model",
-        default="balancingbder",
+        default="balancingrider",
         type=str,
-        help=("Choose the dynamic model for the simulated bicycles. Can be any of 'balancingbider' (default), 'invpendulum', or 'planartwowheel'."),
+        help=("Choose the dynamic model for the simulated bicycles. Can be any of 'balancingrider' (default), 'invpendulum', or 'planartwowheel'."),
     )
     return parser.parse_args()
 
@@ -51,7 +51,7 @@ def get_bike_type(argstr):
     """ Returns the bike model type selected by the '--model' input argument."""
 
     MODEL_TYPES = {
-        "balancingbider": BalancingRiderBicycle,
+        "balancingrider": BalancingRiderBicycle,
         "planarpoint": PlanarPointBicycle,
         "invpendulum": InvPendulumBicycle,
         "planartwowheel": Bicycle,
