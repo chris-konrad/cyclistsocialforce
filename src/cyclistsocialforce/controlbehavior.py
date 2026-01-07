@@ -1598,7 +1598,7 @@ class PoleModel():
         return np.stack([np.c_[reg.intercept_, reg.coef_.flatten()] for reg in regs], axis=0)
 
 
-    def get_component_mean_function(self):
+    def get_component_mean_function(self, verbose=True):
         """ Return the component means as a function of speed
 
         WARNING: This will be wrong if the means are not linear over speed! Check the marginal distribution plot 
@@ -1618,8 +1618,9 @@ class PoleModel():
             means = self.get_component_means(speeds_cond)
 
             scores = []
-            print("Fitting a linear function of speed to the component means.")
-            print(f"score per component: ")
+            if verbose:
+                print("Fitting a linear function of speed to the component means.")
+                print(f"score per component: ")
             if means.ndim != 3:
                 raise NotImplementedError("Not implemented for models with n_components=1!")
             for i in range(means.shape[0]):
@@ -1628,7 +1629,8 @@ class PoleModel():
                 score = reg.score(speeds_cond.reshape(-1,1), means_i)
                 scores.append(score)
                 regs.append(reg)
-                print(f" component {i}: R2 = {score:.2f}")
+                if verbose:
+                    print(f" component {i}: R2 = {score:.2f}")
 
             if np.any(np.array(scores) < 0.9):
                 print(f"   Fit resulted in an unsatifactory R2. Confirm that the speed"

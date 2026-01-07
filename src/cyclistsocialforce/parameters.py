@@ -1309,7 +1309,7 @@ class BalancingRiderBicycleParameters(BicycleParameters):
         if poles is None and gains is None:
             self.controlparam_fix = False
             self._load_controlbehavior_model()
-            self.self.v_last_update = -10000
+            self.v_last_update = -10000
         else:
             self.controlparam_fix = True
             self.poles = poles
@@ -1343,7 +1343,7 @@ class BalancingRiderBicycleParameters(BicycleParameters):
 
     def _load_controlbehavior_model(self):
 
-        modeldirstr = 'data.balancingriderparams'
+        modeldirstr = 'cyclistsocialforce.data.balancingriderparams'
         
         filepath_model = resources.files(modeldirstr).joinpath(self.controlparam_filename)
 
@@ -1364,7 +1364,7 @@ class BalancingRiderBicycleParameters(BicycleParameters):
         self.polemodel = PoleModel.import_from_yaml(filepath_model)
 
         if not self.stochastic_control_behavior:
-            self.polefuncs = self.polemodel.get_component_mean_function()
+            self.polefuncs = self.polemodel.get_component_mean_function(verbose=False)
         else:
             if self.controlparam_polemodel_component >= self.polemodel.gmm_.n_components:
                 raise ValueError((f"Balancing Rider Control Behavior model {self.controlparam_filename} "
@@ -1395,16 +1395,17 @@ class BalancingRiderBicycleParameters(BicycleParameters):
         """
         
         if not self.controlparam_fix:
-            if self.stochastic_rider_behavior:
+            if self.stochastic_control_behavior:
                 if v - self.v_last_update > self.controlparam_resampling_speedthresh:
                     self.poles = self.polemodel.sample_poles(n_samples=1, X_given=v)
                     self.v_last_update = v
             else:
-                polefeatures = self.polefuncs[self.controlparam_polemodel_component].predict(v)
+                polefeatures = self.polefuncs[self.controlparam_polemodel_component].predict([[v]]).flatten()
                 self.poles = [polefeatures[0]]
                 i=1
                 while i < len(polefeatures):
                     self.poles.append(polefeatures[i]+1j*polefeatures[i+1])
+                    self.poles.append(polefeatures[i]-1j*polefeatures[i+1])
                     i += 2
                 self.v_last_update = v
 
