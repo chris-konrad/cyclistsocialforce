@@ -1594,11 +1594,29 @@ class PoleModel():
             (n_components, n_features, 2), with the last dimension representing intercept and coefficient. 
         """
 
+        regs = self.get_component_mean_function()    
+        return np.stack([np.c_[reg.intercept_, reg.coef_.flatten()] for reg in regs], axis=0)
+
+
+    def get_component_mean_function(self):
+        """ Return the component means as a function of speed
+
+        WARNING: This will be wrong if the means are not linear over speed! Check the marginal distribution plot 
+        to verify!
+
+        Returns
+        ------
+        list
+            A list of linear regression functions [c0[v], c1[v], ...] calculating the mean pole location
+            for a given speed for each component of the Gaussian Mixture model.
+        """
+
+        regs = []
+
         if isinstance(self.gmm_, ConditionalGaussianMixture):
             speeds_cond = np.linspace(1.5,5.5,250)
             means = self.get_component_means(speeds_cond)
 
-            regs = []
             scores = []
             print("Fitting a linear function of speed to the component means.")
             print(f"score per component: ")
@@ -1616,10 +1634,18 @@ class PoleModel():
                 print(f"   Fit resulted in an unsatifactory R2. Confirm that the speed"
                       f" dependency of the component means in linear by looking at the plot of the 2D marignals!")
                 
-            return np.stack([np.c_[reg.intercept_, reg.coef_.flatten()] for reg in regs], axis=0)
         else:
+            # if non-conditional create a constant function
             means = self.get_component_means()
-            return means
+
+            for i in range(means.shape[0]):
+                reg = LinearRegression()
+                reg.coef_ = np.zeros((means[i,:].size, 1))
+                reg.intercept_ = means[i,:]
+                reg.n_features_in_ = 1
+                regs.append(reg)
+
+        return regs
 
 
     def plot_gridsearch(self):
