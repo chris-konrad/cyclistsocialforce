@@ -40,9 +40,9 @@ class CurveScenario(Scenario):
     
         # create a bike and att ot the intersection.
         b = BalancingRiderBicycle(
-            (0, -5, np.pi / 2, 5, 0, 0), vid="BalancingRiderBike", saveForces=True
+            (0, -5, np.pi / 2, 5, 0, 0, 0, 0), id="BalancingRiderBike", saveForces=True
         )
-        b.params.v_desired_default = 4.0
+        b.params.v_desired_default = 3.0
         destx, desty = self.segs.get_destinations_from_segments()
         for i in range(3):
             destx.append(destx[-1])
@@ -120,9 +120,9 @@ class CurveScenario(Scenario):
         F[F > 10] = 10
         ax2[1].plot(x, F)
 
-        fig3, ax3 = plt.subplots(6, 1, sharex=True)
-        self.ins.vehicles[0].plot_states(ax3[0:6])
-        self.ins.vehicles[0].plot_forces((ax3[2],), ("direction",))
+        #fig3, ax3 = plt.subplots(8, 1, sharex=True)
+        ax3 = self.ins.vehicles[0].plot_states(t_end=15)
+        self.ins.vehicles[0].plot_forces((ax3[2],), ("direction",), t_end=15)
     
 def main():
     t_end = 15
@@ -130,6 +130,8 @@ def main():
     scn.run(t_end)
     scn.ins.set_animated(False)
     scn.plot_force_field()
+
+    plt.show(block=True)
 
 if __name__=="__main__":
     main()

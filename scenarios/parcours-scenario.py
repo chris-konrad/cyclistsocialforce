@@ -1,15 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 25 16:19:12 2025
-
-Parcours Scenario
-
-@author: Christoph M. Konrad
-"""
-
-
-# -*- coding: utf-8 -*-
-"""
 Created on Tue Feb 25 14:32:22 2025
 
 @author: Christoph M. Konrad
@@ -18,20 +8,14 @@ Created on Tue Feb 25 14:32:22 2025
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scipy import interpolate
+
 from cyclistsocialforce.scenario import Scenario
 from cyclistsocialforce.vehicle import BalancingRiderBicycle
-from cyclistsocialforce.parameters import RoadElementParameters
 from cyclistsocialforce.intersection import (
-    RoadEdge,
-    StraightRoadSegment,
-    CurvedRoadSegment,
-    RoadSegmentCollection,
     SocialForceIntersection,
 )
 
 # %% Create a custom class that defines this scenario.
-
 class ParcoursScenario(Scenario):
     """ A custom scenario of a cyclist following a curve.
     """
@@ -46,11 +30,11 @@ class ParcoursScenario(Scenario):
     
         # create a bike and att ot the intersection.
         b = BalancingRiderBicycle(
-            (0, 0, np.pi / 2, 5, 0, 0), vid="BalancingRiderBike", saveForces=True
+            (0, 0, np.pi / 2, 5, 0, 0, 0, 0), id="BalancingRiderBike", saveForces=True
         )
         b.params.v_desired_default = 4.0
         destx = [0, 10, 0, 5, 10, 20, 21, 22, 23]
-        desty = [10, 20, 30, 40, 40,40,40,40,40]
+        desty = [10, 20, 30, 40, 40, 40, 40, 40, 40]
         
         b.setDestinations(destx, desty)
         b.add_drawing(self.ax, dest_marker_color_cur='red')

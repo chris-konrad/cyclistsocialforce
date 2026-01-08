@@ -900,7 +900,7 @@ class Vehicle:
                     self.trajF[0, :i_end] ** 2 + self.trajF[1, :i_end] ** 2
                 )
             if c == COMPONENTS[1]:
-                y = (360 / (2 * np.pi)) * np.arctan2(
+                y = np.arctan2(
                     self.trajF[1, :i_end], self.trajF[0, :i_end]
                 )
             if c == COMPONENTS[2]:
@@ -1985,7 +1985,7 @@ class BalancingRiderBicycle(Vehicle):
 
         # init forces
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
-        self.dest_force_func = TwoDBicycle.calcDestinationForce
+        self.dest_force_func = calc_direct_approach_dest_force
 
 
 class PlanarPointBicycle(Vehicle):
