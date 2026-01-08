@@ -1396,8 +1396,9 @@ class BalancingRiderBicycleParameters(BicycleParameters):
         
         if not self.controlparam_fix:
             if self.stochastic_control_behavior:
-                if v - self.v_last_update > self.controlparam_resampling_speedthresh:
-                    self.poles = self.polemodel.sample_poles(n_samples=1, X_given=v)
+                if np.abs(v - self.v_last_update) > self.controlparam_resampling_speedthresh:
+                    self.poles, _ = self.polemodel.sample_poles(n_samples=1, X_given=v)
+                    self.poles = self.poles.flatten()
                     self.v_last_update = v
             else:
                 polefeatures = self.polefuncs[self.controlparam_polemodel_component].predict([[v]]).flatten()
