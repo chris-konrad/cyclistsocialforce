@@ -1329,7 +1329,10 @@ class PoleModel():
         self.plot_marginals(X_train, X_test, k_crossval)
         self.plot_gridsearch()
 
-        print(f"    Finished gridsearch with best results covariance_type={self.hyperparameters_["cov_type"]} and n_components={self.hyperparameters_["n_components"]} achieving NLL={self.scores_val_["NLL"]:.4f}")
+
+        print(f"    Finished gridsearch with best results covariance_type={self.hyperparameters_['cov_type']} "
+            f"and n_components={self.hyperparameters_['n_components']} "
+            f"achieving NLL={self.scores_val_['NLL']:.4f}")
 
         return self
     
@@ -1693,7 +1696,7 @@ class PoleModel():
             else:
                 filepath = ""
 
-            filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_{self.OUTPUT_FNAMES["gridsearch-results"]}.png")
+            filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_{self.OUTPUT_FNAMES['gridsearch-results']}.png")
             fig.set_size_inches(16.5, 9.5)
             fig.savefig(filepath)
 
@@ -1794,7 +1797,7 @@ class PoleModel():
             else:
                 filepath = ""
 
-            filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_1d-{self.OUTPUT_FNAMES["marginal-distributions"]}.png")
+            filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_1d-{self.OUTPUT_FNAMES['marginal-distributions']}.png")
             fig.set_size_inches(max(3.5*n_columns, 8), max(3.5 * n_rows, 6.5))
             fig.savefig(filepath)
 
@@ -1977,7 +1980,7 @@ class PoleModel():
             else:
                 filepath = ""
 
-            filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_2d-{self.OUTPUT_FNAMES["marginal-distributions"]}.png")
+            filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_2d-{self.OUTPUT_FNAMES['marginal-distributions']}.png")
             fig.set_size_inches(16.5, 9.5)
             fig.savefig(filepath)
 
@@ -2064,7 +2067,7 @@ class PoleModel():
         else:
             filepath = ""
 
-        filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_{self.OUTPUT_FNAMES["model-export"]}.yaml")
+        filepath = os.path.join(self.paths["dir_out"], filepath+f"{self.feature_set}_{self.OUTPUT_FNAMES['model-export']}.yaml")
 
         with open(filepath, "w") as f:
             yaml.dump(data, f) 
