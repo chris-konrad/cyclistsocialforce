@@ -474,7 +474,9 @@ class BalancingRiderDynamics(Dynamics):
         K_u = sm.Matrix([[params[j]] for j in Ku_param_ids])
         
         # bike-rider eoms
-        f_br = ((A_br - B_br * K_x) * x_br + B_br * K_u * psi_c)
+        self.A = (A_br - B_br * K_x)
+        self.B = (B_br * K_u)
+        f_br = (self.A * x_br + self.B * psi_c)
         
         # forward motion eoms 
         f_fw = sm.Matrix(
@@ -507,6 +509,44 @@ class BalancingRiderDynamics(Dynamics):
 
         return eval_residual, eval_jacobian
     
+    def get_gain_dict(self, v):
+        """Return the gains of the model at speed v as dict."""
+        return dict(zip(self.param_names, self._get_gains(v).flatten()))
+    
+    def set_gain_dict(self, gaindict):
+        """Set the gains of the model given a dict
+        """
+        self.from_gains = True
+        self.params.gains = np.array([gaindict[p] for p in self.param_names])[:,np.newaxis]
+
+    def test_lateral_stability(self, v):
+        """Test the lateral stability of the BalancingRider at speed v
+
+        Parameters
+        ----------
+        v : float
+            The speed to test at.
+
+        Returns
+        -------
+        stable : bool
+            If true, the cyclist is asymptotically stable
+        poles : list
+            The poles of the model
+        """
+        gaindict = self.get_gain_dict(v)
+
+        A = self.A.subs(gaindict)
+        vsym = list(A.free_symbols)[0]
+        A = A.subs({vsym: v})
+
+        B = self.B.subs(gaindict)
+        C = np.zeros((1, A.shape[1]))
+        C[0, 4] = 1
+        D = np.zeros((C.shape[0], B.shape[1]))
+
+        sys = ct.StateSpace(A, B, C, D)
+        return test_stability(sys)
 
     def get_statespace_matrices(self, v):
         """
