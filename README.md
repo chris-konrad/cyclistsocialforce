@@ -35,12 +35,14 @@ The package is research code under development. This is the development branch. 
    git clone  https://github.com/chrismo-konrad/cyclistsocialforce.git
    ```
 
-3. Install the package and it's dependencies. Refer to `pyproject.toml` for an overview of the dependencies. 
+3. Install the package and it's dependencies. Refer to `pyproject.toml` for an overview of the dependencies. The following installs the package for stand-alone simulaitons.
    
    ```
    cd ./cyclistsocialforce
    pip install . 
    ```
+
+   If you want to use cyclistsocialforces with SUMO, additional dependencies are required. Choose between GUI-mode (using traci) `pip install .[sumo-gui]` and CLI- mode (using the faster libsumo) `pip install .[sumo-cli]`. 
 
 4. A few custom dependencies are not available as pypi packages and have to be installed manually. Follow the instructions from their github pages for installation.
    

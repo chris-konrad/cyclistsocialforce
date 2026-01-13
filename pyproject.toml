@@ -16,17 +16,25 @@ dependencies = [
 	"numpy >= 1.25",
 	"matplotlib >= 3.7",
 	"scipy >= 1.10",
-	"sumolib",
 	"traci",
 	"control",
 	"pyqt5",
-	"libsumo",
 	"opencv-python",
 	"bicycleparameters",
 	"datetime",
 	"sympy",
 	"pandas", 
 	"scikit-learn"
+]
+
+[project.optional-dependencies]
+sumo-gui = [
+    "sumolib",
+	"traci"
+]
+sumo-cli = [
+	"sumolib",
+	"libsumo"
 ]
 	
 [tool.setuptools.packages.find]

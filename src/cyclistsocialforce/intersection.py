@@ -307,10 +307,13 @@ class SocialForceIntersection:
         None.
 
         """
+                
+        #SUMO
+        self._configure_for_sumo(activate_sumo_cosimulation)
+
         self.bicycle_drawing_kwargs = bicycle_drawing_kwargs
         self.is_first_step = True
-        
-        self.activate_sumo_cosimulation = activate_sumo_cosimulation
+
         self.vehicles = vehicleList
         self.n_bikes = len(vehicleList)
 
@@ -425,6 +428,17 @@ class SocialForceIntersection:
                     self.shape, facecolor="black", edgecolor="black"
                 )
                 self.ax.add_patch(patch)
+
+
+    def _configure_for_sumo(self, activate_sumo_cosimulation):
+        """Check that required SUMO libraries are available and 
+        set property."""
+
+        self.activate_sumo_cosimulation = activate_sumo_cosimulation
+        
+        if self.activate_sumo_cosimulation and not cfg.has_sumo:
+            raise cfg.raise_missing_sumo_libraries_error()
+
 
     def find_entered_exited_roadusers(self):
         """
