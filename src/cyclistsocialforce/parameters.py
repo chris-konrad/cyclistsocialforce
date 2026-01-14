@@ -1257,7 +1257,7 @@ class BalancingRiderBicycleParameters(BicycleParameters):
             last update for updating the Balancing Rider control parameters. Only 
             used if stochastic_control_behavior is True. The default is 0.833 m/s, 
             corresponding to the 3 km/h speed range of the samples used for training
-            the pole models. 
+            the pole models. Negative values resamples the poles at every step.
         controlparam_polemodel_component : int, optional
             The Balancing Rider control model component (aka component of GMM pole model)
             used to extract the mean pole location. Only used if stochastic_control_behavior is False.
