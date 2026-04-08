@@ -21,6 +21,9 @@ from cyclistsocialforce.parameters import (
     BikeDrawing2DParameters,
 )
 
+import sympy as sm
+import sympy.physics.mechanics as me
+
 
 class VehicleDrawing:
 
@@ -560,6 +563,70 @@ class CarDrawing2D(VehicleDrawing):
         self.ghandles["car_polygon"].set_verts((keypoints,))
         self.ax.draw_artist(self.ghandles["car_polygon"])
 
+
+class BalancingRiderDrawing2D(VehicleDrawing):
+
+
+    def wheelelipse_params(N, B, center, radius):
+
+        rim_topp = center.locate_new('rt', - radius * B.z)
+        rim_botm = center.locate_new('rb', radius * B.z)
+        rim_frnt = center.locate_new('rf', radius * B.x)
+        rim_rear = center.locate_new('rr', -radius * B.x)
+
+        semimajor = rim_frnt.pos_from(rim_rear)
+        semimajor_2d = semimajor.dot(N.x) * N.x + semimajor.dot(N.y) * N.y
+
+        semiminor = rim_topp.pos_from(rim_botm)
+        semiminor_2d = semiminor.dot(N.x) * N.x + semiminor_2d.dot(N.y) * N.y
+
+        xy = [center.dot(N.x), center.dot(N.y)]
+        height = semiminor_2d.magnitude()
+        width = semimajor_2d.magnitude()
+        angle = semimajor_2d.angle_between(N.x)
+
+        return xy, width, height, angle
+    
+    def framepoly_params():
+
+
+    def make_keypoints(paramSet, ):
+
+        px, py = sm.symbols('p_x, p_y')
+        phi, psi, delta = sm.symbols('phi, psi, delta')
+        
+        N = me.RefeereceFrame('N')
+        B = me.ReferenceFrame('B')
+        F_lam = me.ReferenceFrame('F_lam')
+        F = me.ReferenceFrame('F')
+
+        B.orient_body_fixed(N, (psi, phi, 0), 'ZXY')
+        F_lam.orient_axis(B, paramSet['lam'], B.y)
+        F.orient_axis(F_lam, delta, F_lam.z)
+
+        # reference point (rear-wheel contact point) and origin
+        o = sm.Point('o')
+        p = o.locate_new('p', px * N.x +  py * N.y)
+
+        # keypoints
+        rwc = p.locate_new('rwc', -paramSet['rR'] * B.z)    # rear wheel center
+        fwc = rwc.locate_new('fwc', paramSet['w'] * sm.sin(sm.pi/2 - paramSet['lam']) * F_lam.x + paramSet['w'] * sm.cos(sm.pi/2 - paramSet['lam']) * F_lam.z)
+        hbc = fwc.locate_new('hbc', - steer_column_height * F_lam.z)
+        
+
+
+        rwax = rwcp.locate_new('rwcp', - paramSet['rR'] * B.z)
+        rwfr = rwc.locate_new('rwax', paramSet['rR'] * B.x)
+
+        
+
+        rearwheel = [rwax, rwcp, rwfr] #
+
+        #diamond frame
+
+
+        rwc, rwt, rwr = me.symbols('rwc, rwt, rwr', cls=me.Point)
+        
 
 class BicycleDrawing2D(VehicleDrawing):
 
