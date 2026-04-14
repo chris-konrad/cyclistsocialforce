@@ -11,7 +11,7 @@ import numpy as np
 import control as ct
 import warnings
 
-from cyclistsocialforce.utils import thresh
+from cyclistsocialforce.utils import thresh, dataunits_to_points
 from pypaperutils.design import TUDcolors
 
 from bicycleparameters.parameter_dicts import meijaard2007_browser_jason
@@ -175,6 +175,150 @@ class VehicleDrawingParameters:
             or self.draw_forces_repulsive
             or self.draw_forces_resulting
         )
+
+
+class BalancingRiderDrawingParameters(VehicleDrawingParameters):
+    """Class storing and maintaining the parameters for a balancing rider bicycle drawing.
+
+    Parameters include colors,
+    To be used together with cyclistsocialforce.visualisation.BalancingRiderDrawing
+
+    """
+
+    def __init__(
+        self,
+        bike, 
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+        bike_thickness_wheels=0.03,
+        bike_thickness_frame=0.05,
+        draw_frontwheel_trajectory=True,
+        proj_3d=False,
+        **kwargs,
+    ):
+        """Create a bicycle drawing parameters object.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+        proj3d : TYPE, optional
+            Prepares color lists for the 3D drawing instead of 2D.
+            The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
+        super().__init__(**kwargs)
+
+        self.bicycleParameterDict = bike.params.bp_params_set.parameters
+
+        self.proj_3d = proj_3d
+        self.draw_frontwheel_trajectory = draw_frontwheel_trajectory
+
+        self.ewidth_frame = bike_thickness_frame
+        self.ewidth_wheel = bike_thickness_wheels
+
+        self.init_riderbike_colors(
+            bike_color_frame,
+            bike_color_wheels,
+            rider_color_body,
+            rider_color_head,
+        )
+        self.make_colorlists_riderbike()
+
+
+    def init_riderbike_colors(
+        self,
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+    ):
+        """Initializes the face and edge colors for the bike-rider polygon
+        including the roll indicator.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        if bike_color_frame is None:
+            bike_color_frame = self.tud_colors.get("cyaan")
+        if bike_color_wheels is None:
+            bike_color_wheels = "gray"
+
+        if rider_color_body is None:
+            rider_color_body = self.tud_colors.get(
+                np.random.randint(0, len(self.tud_colors.colors))
+            )
+        elif isinstance(rider_color_body, list):
+            rider_color_body = rider_color_body[
+                np.random.randint(0, len(rider_color_body))
+            ]
+
+        if rider_color_head is None:
+            rider_color_head = self.tud_colors.get("cyaan")
+
+        self.bike_color_frame = bike_color_frame
+        self.bike_color_wheels = bike_color_wheels
+        self.rider_color_body = rider_color_body
+        self.rider_color_head = rider_color_head
+
+    def make_colorlists_riderbike(self):
+        """Create the list of colors for the rider+bike polygons/ellipses.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.ecolors_riderbike_poly = [
+            self.bike_color_frame,
+            self.bike_color_frame,
+            #self.rider_color_body,
+            #self.rider_color_body,
+            #self.rider_color_body,
+            #self.rider_color_head,
+        ]
+        self.fcolors_riderbike_poly = ["none"] * 2
+        self.ewidths_riderbike_poly = [self.ewidth_frame, self.ewidth_frame]
+
+        self.ecolors_riderbike_elli = [
+            self.bike_color_wheels,
+            self.bike_color_wheels,
+        ]
+        self.fcolors_riderbike_elli = ["none"] * 2
+        self.ewidths_riderbike_elli = [self.ewidth_wheel, self.ewidth_wheel]
 
 
 class BikeDrawing2DParameters(VehicleDrawingParameters):
