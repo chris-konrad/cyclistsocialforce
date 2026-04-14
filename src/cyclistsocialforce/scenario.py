@@ -38,8 +38,12 @@ import matplotlib.pyplot as plt
 from time import time, sleep, strftime
 from datetime import timedelta
 
-
-
+if cfg.has_sumo:
+    import sumolib
+    if cfg.sumo_use_libsumo:
+        import libsumo as traci
+    else:
+        import traci
 
 class Scenario:
     
@@ -287,10 +291,8 @@ class SUMOScenario:
             run_time_factor * t_s with t_s beeing the simulated step lenght.
             Set to 'None' to run as fast as possible. Default is 1.0
         """
-
-        # check if SUMO libs are available
         if not cfg.has_sumo:
-            cfg.raise_missing_sumo_libraries_error()
+            raise cfg.SumoNotFoundError()
 
         # time utilities
         self.hist_run_time = []

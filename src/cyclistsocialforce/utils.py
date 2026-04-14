@@ -12,6 +12,37 @@ import io
 from scipy.fft import fft
 from collections import deque
 
+
+def dataunits_to_points(ax, ydist):
+    """
+    Convert distances in data units (y-direction) to points.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    ydist : float or array-like
+
+    Returns
+    -------
+    ndarray
+    """
+    fig = ax.figure
+    dpi = fig.dpi
+
+    ydist = np.asarray(ydist)
+
+    trans = ax.transData
+
+    # transform reference and displaced points
+    p0 = trans.transform(np.column_stack([np.zeros_like(ydist), np.zeros_like(ydist)]))
+    p1 = trans.transform(np.column_stack([np.zeros_like(ydist), ydist]))
+
+    # pixel distance in y-direction
+    dy_px = p1[:, 1] - p0[:, 1]
+
+    return dy_px * 72.0 / dpi
+
+
 def plot_fft(t, x):
     """
     Plots the fft of a time-discrete signal x

@@ -10,7 +10,7 @@ Classes and functions for the vizualisation of the simulation.
 import numpy as np
 
 from matplotlib.patches import Polygon
-from matplotlib.collections import PolyCollection
+from matplotlib.collections import PolyCollection, EllipseCollection
 from matplotlib.lines import Line2D
 from pypaperutils.design import TUDcolors
 
@@ -19,7 +19,12 @@ from mpl_toolkits.mplot3d.art3d import Line3D, Poly3DCollection
 from cyclistsocialforce.parameters import (
     VehicleDrawingParameters,
     BikeDrawing2DParameters,
+    BalancingRiderDrawingParameters
 )
+from cyclistsocialforce.utils import dataunits_to_points
+
+import sympy as sm
+import sympy.physics.mechanics as me
 
 
 class VehicleDrawing:
@@ -560,6 +565,304 @@ class CarDrawing2D(VehicleDrawing):
         self.ghandles["car_polygon"].set_verts((keypoints,))
         self.ax.draw_artist(self.ghandles["car_polygon"])
 
+
+class BalancingRiderDrawing(VehicleDrawing):
+
+    PARAMS_CLASS = BalancingRiderDrawingParameters
+
+    def __init__(self, ax, bike, params=None, draw_frontwheel_trajectory=False):
+        """Create a animated drawing made of the Balancing Rider with representation of roll and steer.
+
+        Parameters
+        ----------
+        ax : Axes
+            Axes where the drawing should be created in.
+        bike : cyclistsocialforce.vehicle.BalancingRiderBicycle
+            Bicycle object to be drawn.
+        params : cyclistsocialforce.parameters.BalancingRiderDrawingParameters, optional
+            Parameters object. If none is given, initializes the default
+            parameters.
+        proj_3d : bool. optinal
+            Project the 2D drawing in the ground plane of a 3D plot. The
+            default is False.
+        animated : bool, optional
+            Animate the drawing. The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
+        if params is None:
+            params = self.PARAMS_CLASS(bike)
+
+        if params.draw_frontwheel_trajectory:
+            self.traj_fw = np.zeros((2, bike.traj.shape[1]))
+
+        super().__init__(ax, bike, params=params)
+        self.make_keypoint_evaluators()
+        self.make_bicycle_ploygon(bike.s)
+
+    def no3d_exception(self):
+        return NotImplementedError(f"3D vizualisation is not yet implemented for {self.__class__.__name__}!")
+
+    def get_wheelelipse_params_sym(self, N, B, O, center, radius):
+
+        x = center.pos_from(O).dot(N.x)
+        y = center.pos_from(O).dot(N.y)
+        height = 2 * radius * B.y.dot(N.z)
+        width = 2 * radius
+
+        vel_fw_plane = B.y.cross(N.z).normalize()
+        angle = vel_fw_plane.angle_between(N.x)
+
+        return x, y, width, height, angle
+    
+    def get_fw_contactpoint_sym(self, N, F, O, center, radius):
+
+        movement_direction = F.y.cross(N.z).normalize()
+        r_fwc_O = center.pos_from(O) + radius * movement_direction.cross(F.y).normalize()
+
+        x = r_fwc_O.dot(N.x)
+        y = r_fwc_O.dot(N.y)
+
+        return x, y
+
+    def get_framepoly_params_sym(self, N, B, O, P_rwc, F_lam, frame_length, saddle_pole_length=0.6, bottom_bracket_dist=0.5, steer_col_bracket_length=0.1):
+
+        P_botbrkt = P_rwc.locatenew('s', bottom_bracket_dist * B.x)
+        P_top = P_botbrkt.locatenew('s', - (saddle_pole_length - 0.1) * F_lam.z)
+        P_saddle = P_botbrkt.locatenew('s', - (saddle_pole_length) * F_lam.z)
+
+        P_front_top = P_rwc.locatenew('s', frame_length * F_lam.x - steer_col_bracket_length/2 * F_lam.z)
+        P_front_bot = P_rwc.locatenew('s', frame_length * F_lam.x + steer_col_bracket_length/2 * F_lam.z)
+
+        r_rwc = P_rwc.pos_from(O)
+        r_botbrkt = P_botbrkt.pos_from(O)
+        r_saddle = P_saddle.pos_from(O)
+        r_top = P_top.pos_from(O)
+        r_front_top = P_front_top.pos_from(O)
+        r_front_bot = P_front_bot.pos_from(O)
+
+        xy = [[r_rwc.dot(N.x), r_rwc.dot(N.y)],
+              [r_top.dot(N.x), r_top.dot(N.y)],
+              [r_front_top.dot(N.x), r_front_top.dot(N.y)],
+              [r_front_bot.dot(N.x), r_front_bot.dot(N.y)],
+              [r_botbrkt.dot(N.x), r_botbrkt.dot(N.y)],
+              [r_saddle.dot(N.x), r_saddle.dot(N.y)],
+              [r_botbrkt.dot(N.x), r_botbrkt.dot(N.y)],
+              [r_rwc.dot(N.x), r_rwc.dot(N.y)]]
+        
+        return xy
+    
+    def get_steerpoly_params_sym(self, N, F, O, P_fwc, steer_col_length, steer_stem_length=0.2, handlebar_width=0.6):
+
+        P_steercol_top = P_fwc.locatenew('sct', - (steer_col_length+0.05) * F.z)
+        P_handlbar_cnt = P_steercol_top.locatenew('hbc', steer_stem_length * F.x)
+        P_handlbar_lft = P_handlbar_cnt.locatenew('hbl', - handlebar_width/2 * F.y)
+        P_handlbar_rgt = P_handlbar_cnt.locatenew('hbr', handlebar_width/2 * F.y)
+
+        r_fwc = P_fwc.pos_from(O)
+        r_steercol_top = P_steercol_top.pos_from(O)
+        r_handlbar_cnt = P_handlbar_cnt.pos_from(O)
+        r_handlbar_lft = P_handlbar_lft.pos_from(O)
+        r_handlbar_rgt = P_handlbar_rgt.pos_from(O)
+
+        xy = [[r_fwc.dot(N.x), r_fwc.dot(N.y)],
+              [r_steercol_top.dot(N.x), r_steercol_top.dot(N.y)],
+              [r_handlbar_cnt.dot(N.x), r_handlbar_cnt.dot(N.y)],
+              [r_handlbar_lft.dot(N.x), r_handlbar_lft.dot(N.y)],
+              [r_handlbar_rgt.dot(N.x), r_handlbar_rgt.dot(N.y)],
+              [r_handlbar_cnt.dot(N.x), r_handlbar_cnt.dot(N.y)],
+              [r_steercol_top.dot(N.x), r_steercol_top.dot(N.y)],]
+        
+        return xy
+
+    def make_keypoint_evaluators(self):
+
+        px, py, v = sm.symbols('p_x, p_y, v')
+        phi, psi, delta = sm.symbols('phi, psi, delta')
+        
+        N = me.ReferenceFrame('N')
+        B = me.ReferenceFrame('B')
+        F_lam = me.ReferenceFrame('F_lam')
+        F = me.ReferenceFrame('F')
+
+        B.orient_body_fixed(N, (psi, -phi, 0), 'ZXY')
+        F_lam.orient_axis(B, self.params.bicycleParameterDict['lam'], B.y)
+        F.orient_axis(F_lam, delta, F_lam.z)
+
+        # reference point (rear-wheel contact point) and origin
+        O = me.Point('o')
+        P = O.locatenew('p', px * N.x +  py * N.y)
+
+        # keypoints
+        frame_length = self.params.bicycleParameterDict['w'] * sm.sin(sm.pi/2 - self.params.bicycleParameterDict['lam'])
+        steer_column_length = self.params.bicycleParameterDict['w'] * sm.cos(sm.pi/2 - self.params.bicycleParameterDict['lam'])
+
+        rwc = P.locatenew('rwc', -self.params.bicycleParameterDict['rR'] * B.z)    # rear wheel center
+        fwc = rwc.locatenew('fwc', frame_length * F_lam.x + steer_column_length * F_lam.z)
+        
+        # symbolic ghandle params
+        rw_params_sym = self.get_wheelelipse_params_sym(N, B, O, rwc, self.params.bicycleParameterDict['rR'])
+        fw_params_sym = self.get_wheelelipse_params_sym(N, F, O, fwc, self.params.bicycleParameterDict['rF'])
+
+        frame_params_sym = self.get_framepoly_params_sym(N, B, O, rwc, F_lam, frame_length)
+        steer_params_sym = self.get_steerpoly_params_sym(N, F, O, fwc, 1.2 * steer_column_length)
+
+        state_params = [px, py, psi, v, delta, phi]
+
+        self.eval_rw_params = sm.lambdify(state_params, rw_params_sym)
+        self.eval_fw_params = sm.lambdify(state_params, fw_params_sym)
+        self.eval_frame_params = sm.lambdify(state_params, frame_params_sym)
+        self.eval_steer_params = sm.lambdify(state_params, steer_params_sym)
+
+        if self.params.draw_frontwheel_trajectory:
+            fw_contactpoint_sym = self.get_fw_contactpoint_sym(N, F, O, fwc, self.params.bicycleParameterDict['rF'])
+            self.eval_fw_contactpoint = sm.lambdify(state_params, fw_contactpoint_sym)
+
+
+    def calc_keypoints(self, s):
+        """Returns lists of keypoints for different 
+
+        Parameters
+        ----------
+        s : array-like
+            Current bicycle state as returned by bicycle.s.
+
+        Returns
+        -------
+        poly_keypoints : list
+            List of poly keypoints [verts_rearframe, verts_frontframe], where each verts_XX is 
+            a Mx2 array. For use with PolyCollection.
+        ellipse_params : array
+            Array of ellipse parameters shaped [N, 3] for N ellipses with paramters [width, height, angle]
+            in the columns. For use with EllipseCollection.
+        """
+
+        poly_keypoints = [np.array(self.eval_frame_params(*s[:6])),
+                          np.array(self.eval_steer_params(*s[:6]))]
+        
+        ellipse_params = np.c_[np.array(self.eval_rw_params(*s[:6])), 
+                               np.array(self.eval_fw_params(*s[:6]))].T
+        ellipse_params[:,4] = np.rad2deg(ellipse_params[:,4])
+        
+        return poly_keypoints, ellipse_params
+
+    def make_bicycle_ploygon(self, s):
+        """Create the polygon collections that make the bike drawing.
+
+        Called by the constructor.
+
+        Parameters
+        ----------
+        s : array-like
+            Current bicycle state as returned by bicycle.s.
+
+        Returns
+        -------
+        None.
+
+        """
+        poly_points, ellipse_params = self.calc_keypoints(s)
+
+        if self.params.proj_3d:
+            raise self.no3d_exception()
+        else:
+            self.ghandles["bike_polygons"] = PolyCollection(
+                poly_points,
+                animated=self.params.animated,
+                facecolors=self.params.fcolors_riderbike_poly,
+                edgecolors=self.params.ecolors_riderbike_poly,
+                linewidths=dataunits_to_points(self.ax, self.params.ewidths_riderbike_poly),
+                zorder=200,
+            )
+            self.ax.add_collection(self.ghandles["bike_polygons"])
+
+            self.ghandles["bike_ellipses"] = EllipseCollection(
+                ellipse_params[:,2],
+                ellipse_params[:,3],
+                ellipse_params[:,4],
+                offsets=ellipse_params[:,:2],
+                animated=self.params.animated,
+                facecolors=self.params.fcolors_riderbike_elli,
+                edgecolors=self.params.ecolors_riderbike_elli,
+                linewidths=dataunits_to_points(self.ax, self.params.ewidths_riderbike_elli),
+                zorder=100,
+                transOffset = self.ax.transData,
+                units="xy"
+
+            )
+            self.ax.add_collection(self.ghandles["bike_ellipses"])
+
+            if self.params.draw_frontwheel_trajectory:
+                x_fw, y_fw = self.eval_fw_contactpoint(*s[:6])
+
+                self.traj_fw[0,0] = x_fw
+                self.traj_fw[0,1] = y_fw
+
+                (self.ghandles["trajectory_frontwheel"],) = self.ax.plot(
+                    x_fw,
+                    y_fw,
+                    color=self.params.traj_line_color,
+                    linewidth=self.params.traj_line_width,
+                    animated=self.params.animated)
+                self.ax.draw_artist(self.ghandles["trajectory_frontwheel"])
+
+
+    def update(self, bicycle, Fdest=None, Frep=None, Fres=None):
+        """Updates all elements of the bicycle drawing.
+
+        Parameters
+        ----------
+        bicycle : cyclistsocialforce.Bicycle
+            Any bicycle from the vehicle module
+        """
+        super().update(bicycle, Fdest=Fdest, Frep=Frep, Fres=Fres)
+        self.update_bike_polygon(bicycle)
+
+
+    def update_bike_polygon(self, bike):
+        """Update the drawing according to the bicycles state.
+
+        Parameters
+        ----------
+        bike : cyclistsocialforce.vehicle.Bicycle
+            Bicycle object whose state the drawing will be updated to.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        poly_points, ellipse_params = self.calc_keypoints(bike.s)
+
+        self.ghandles["bike_polygons"].set_verts(poly_points)
+
+        self.ghandles["bike_ellipses"].set_offsets(ellipse_params[:,:2])
+        self.ghandles["bike_ellipses"].set_widths(ellipse_params[:,2])
+        self.ghandles["bike_ellipses"].set_heights(ellipse_params[:,3])
+        self.ghandles["bike_ellipses"].set_angles(ellipse_params[:,4])
+
+        if self.params.proj_3d:
+            raise self.no3d_exception()
+        else:
+            self.ax.draw_artist(self.ghandles["bike_ellipses"])
+            self.ax.draw_artist(self.ghandles["bike_polygons"])
+            
+        if self.params.draw_frontwheel_trajectory:
+            x_fw, y_fw = self.eval_fw_contactpoint(*bike.s[:6])
+
+            self.traj_fw[0,bike.i] = x_fw
+            self.traj_fw[1,bike.i] = y_fw
+
+            self.ghandles["trajectory_frontwheel"].set_data(
+                self.traj_fw[0, 0:bike.i], 
+                self.traj_fw[1, 0:bike.i],
+            )
+            self.ax.draw_artist(self.ghandles["trajectory_frontwheel"])
+        
 
 class BicycleDrawing2D(VehicleDrawing):
 

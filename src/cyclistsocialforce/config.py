@@ -44,25 +44,11 @@ if not has_sumo:
         )
     )
 
-def raise_missing_sumo_libraries_error():
-    """Raise a ModuleNotFound error if not all required SUMO libraries
-    are installed. 
-    """
-    libs = []
-    if has_sumolib:
-        libs.append("sumolib")
-    if has_traci:
-        libs.append("traci")
-    if has_libsumo:
-        libs.append("libsumo")
-    if len(libs) == 0:
-        libs.append("none")
-    libstr = str(libs)[1:-1]
-
-    msg = (f"Running cyclistsocialforces together with SUMO requires ",
-           f"sumolib and either traci (GUI compatibility) or libsumo ",
-           f"(computational efficiency). The following libraries were",
-           f"found in this environment: {libstr}. Reinstall cyclistsoci",
-           f"alforces using 'pip install .[sumo-gui]', pip install .[",
-           f"sumo-cli]', or install the missing libraries manually.") 
-    raise ModuleNotFoundError(msg)
+class SumoNotFoundError(Exception):
+    def __init__(self):
+        msg = ImportError(
+            ("SUMO packages not found. Install sumolib and "
+             "either traci or libsumo to run cyclistsocialforce with "
+             "SUMO.")
+        )
+        super().__init__(msg)
