@@ -30,24 +30,13 @@ import matplotlib.pyplot as plt
 from time import time, sleep, strftime
 from datetime import timedelta
 
-try:
+if cfg.has_sumo:
     import sumolib
-
     if cfg.sumo_use_libsumo:
         import libsumo as traci
     else:
         import traci
-except ImportError:
-    raise ImportError(
-        (
-            "SUMO packages not found. The scenario module is "
-            "designed to run SUMO scenarios. Install sumolib and "
-            "either traci or libsumo to run cyclistsocialforce with "
-            "SUMO. If you intend to run cyclistsocialforce "
-            "with SUMO, set up your own scenarios as demonstrated "
-            "in the demos."
-        )
-    )
+
 
 
 class Scenario:
@@ -296,6 +285,8 @@ class SUMOScenario:
             run_time_factor * t_s with t_s beeing the simulated step lenght.
             Set to 'None' to run as fast as possible. Default is 1.0
         """
+        if not cfg.has_sumo:
+            raise cfg.SumoNotFoundError()
 
         # time utilities
         self.hist_run_time = []

@@ -43,3 +43,12 @@ if not has_sumo:
             "installed in your environment to run with SUMO."
         )
     )
+
+class SumoNotFoundError(Exception):
+    def __init__(self):
+        msg = ImportError(
+            ("SUMO packages not found. Install sumolib and "
+             "either traci or libsumo to run cyclistsocialforce with "
+             "SUMO.")
+        )
+        super().__init__(msg)
