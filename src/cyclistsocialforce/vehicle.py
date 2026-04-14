@@ -31,6 +31,7 @@ from cyclistsocialforce.parameters import (
 from cyclistsocialforce.vizualisation import (
     VehicleDrawing,
     BicycleDrawing2D,
+    BalancingRiderDrawing,
     CarDrawing2D,
 )
 
@@ -692,13 +693,16 @@ class Vehicle:
         else:
             self.setDestinations(x_i, y_i, reset=reset)
 
-    def add_drawing(self, ax, drawing=None, **kwargs):
+    def add_drawing(self, ax, *args, drawing=None, **kwargs):
         """Adds a drawing to this vehicle.
 
         Parameters
         ----------
         ax : axes
             The axes object to be drawn in.
+        *args 
+            Any arguments arguments to this vehicles drawing parameters class.
+            Only active if drawing=None.
         drawing : cyclistsocialforce.vizualisation.VehicleDrawing, optional
             The drawing to be added. If None, a drawing with default parameters
             is generated. Default is None.
@@ -709,7 +713,7 @@ class Vehicle:
 
         if drawing is None:
             self.drawing = self.DRAWING_TYPE(
-                ax, self, params=self.DRAWING_TYPE.PARAMS_CLASS(**kwargs)
+                ax, self, params=self.DRAWING_TYPE.PARAMS_CLASS(*args, **kwargs)
             )
         else:
             assert isinstance(drawing, self.DRAWING_TYPE), (
@@ -1955,7 +1959,7 @@ class BalancingRiderBicycle(Vehicle):
 
     DYNAMICS_TYPE = BalancingRiderDynamics
     PARAMS_TYPE = BalancingRiderBicycleParameters
-    DRAWING_TYPE = BicycleDrawing2D
+    DRAWING_TYPE = BalancingRiderDrawing
     N_STATES = 8
     STATE_NAMES = ["x[m]", "y[m]", "psi[rad]", "v[m/s]", "delta[rad]", "phi[rad]", "deltadot[rad/s]", "phidot[rad/s]"]
 
@@ -1987,6 +1991,8 @@ class BalancingRiderBicycle(Vehicle):
         self.rep_force_func = TwoDBicycle.calcRepulsiveForce
         self.dest_force_func = TwoDBicycle.calcDestinationForce
 
+    def add_drawing(self, ax, drawing=None, **kwargs):
+        return super().add_drawing(ax, self, drawing=drawing, **kwargs)
 
 class PlanarPointBicycle(Vehicle):
 
