@@ -90,6 +90,10 @@ Or:
 python demoCSFxSUMO-large.py
 ```
 
+## Tests
+
+(Manual) test scripts for individual functions can be found in `/tests/`. `tests/tests.md` documents the tests. Tests scripts can also serve as demos for how to use the package.
+
 ## Authors
 
 - Christoph M. Konrad (formerly Schmidt), c.m.konrad@tudelft.nl
