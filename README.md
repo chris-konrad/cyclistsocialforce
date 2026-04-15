@@ -54,40 +54,34 @@ The package is research code under development. This is the development branch. 
 
 ## Demos
 
-Additionally to the old demos (continue below), the package has two example scenarios in the `scenarios` that illustrate a newer, more straightforward way to build scenarios without SUMO based on a new more general `scenario` class.
+Demos of the functions of the package can be found in the `/demos/` directory. Currently, these are also the best way to learn usage and API.  
+Run demos as Python scripts from the command line. Check `--help` for configuration options.
 
-- Parcours: A single cyclists following a sequence of desired destinations.
+### Building Scenarios
+The package has two example scenarios in the `scenarios` that illustrate a newer, more straightforward way to build scenarios without SUMO based on a new more general `scenario` class.
 
-- Curve: A single cyclist following a curved road (featuring infrastructure forces)
+- `demo_parcours-scenario.py`: A single cyclists following a sequence of desired destinations.
 
-#### Old demos
+- `demo_curve-scenario.py`: A single cyclist following a curved road (featuring infrastructure forces)
 
-The package comes with three demos. The first demo shows a simple interaction between three cyclists in open space. The script is pre-coded with an encroachment conflict and runs as a standalone without SUMO. Running the script produces an animation of the interaction and a plot of the vehicle states.  The second demo shows co-simulation of an intersection with SUMO. It launches the SUMO GUI and creates a small scenario of a three-legged intersection with random bicycle demand. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the social force model takes over control.  Movements are synchronized between SUMO and the social force model by using the TraCI interface. Switching toLibsumo is possible by uncomming a config variable in the beginning of the script, but this will [prevent simulation with the SUMO GUI](https://sumo.dlr.de/docs/Libsumo.html#limitations). A third demo simulates a larger SUMO scenario with four intersections. 
+### The Balancing Rider Model
 
-**Running the demos:**
+- `demo_BalancingRider-control-variability.py`: A demonstration of the path variability created by the distribution of control parameters of the Balancing Rider model. 
 
-Switch to the demo directroy.
+### Cyclist-Cyclist Interactions
+- `demo\demo_interaction.py`: A single crossing interaction of three cyclists using the social force model.
 
-```
-cd ./demo
-```
+### SUMO demos
 
-Run the standalone demo. Optionally set the `--save` flag to save a pdf of the potential and force plots to the `./demo/output/` folder. Set the `--model` flag  to run the demo with different bicycle models. Refer to the file header or `--help` for a list of available models. 
+**THE SUMO CO-SIMULATION DEMOS HAVE NOT BEEN TESTED IN A LONG WHILE AND LIKELY NEED DEBUGGING.**
 
-```
-python demoCSFstandalone.py
-```
+The package comes with two demos for SUMO co-simulation. The demos launch the SUMO GUI and create a small scenario of a three-legged intersection with random bicycle demand. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the social force model takes over control.  Movements are synchronized between SUMO and the social force model by using the TraCI interface. Switching to Libsumo is possible by uncommenting a config variable in the beginning of the script, but this will [prevent simulation with the SUMO GUI](https://sumo.dlr.de/docs/Libsumo.html#limitations).
 
-Run the SUMO demos. After executing the line below, the SUMO GUI and matplotllib figure opens. To start the simulation, press the 'play' button in the SUMO GUI. To end it, press 'stop'. This uses the `vehicle.Bicycle` model. The inverted pendulum model currently not stable enough for crowed scenarios like this demos. 
-
-```
-python demoCSFxSUMO.py
-```
-
-Or: 
+**Run the SUMO demos**
+After executing the line below, the SUMO GUI and matplotllib figure opens. To start the simulation, press the 'play' button in the SUMO GUI. To end it, press 'stop'. This uses the `vehicle.Bicycle` model. The inverted pendulum model currently not stable enough for crowed scenarios like this demos. 
 
 ```
-python demoCSFxSUMO-large.py
+python demo_SUMO.py
 ```
 
 ## Tests
