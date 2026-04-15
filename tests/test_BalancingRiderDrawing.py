@@ -1,12 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-Test the BalancingRider drawing (2D)
+Test the BalancingRider drawing (2D).
+
+This script runs a minimal animated scenario with a BalancingRider bicycle
+following a predefined set of destinations.
+
+Intended as a visual sanity test of the 2D visualization of roll/steer with
+BalancingRiderDrawing.
+
+Usage: 
+    python test_BalancingRiderDrawing.py
 
 @author: Christoph M. Konrad
 """
 
+
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 
 from cyclistsocialforce.scenario import Scenario
 from cyclistsocialforce.vehicle import BalancingRiderBicycle
@@ -25,8 +36,8 @@ class ParcoursScenario(Scenario):
             (0, 0, np.pi/2, 5, 0, 0, 0, 0), id="BalancingRiderBike", saveForces=True
         )
         self.bike.params.v_desired_default = 4.0
-        destx = [0, 10, 0, 5, 10, 20, 21, 22, 23]
-        desty = [10, 20, 30, 40, 40, 40, 40, 40, 40]
+        destx = [0, 5, 7, 5, 10, 20, 21, 22, 23]
+        desty = [10, 20, 30, 40, 50, 60, 70, 80, 90]
         
         self.bike.setDestinations(destx, desty)
 
@@ -56,12 +67,25 @@ class ParcoursScenario(Scenario):
         self.bike.step(Fx, Fy)
         self.ax.set_xlim(self.bike.s[0] + self.xrange)
         self.ax.set_ylim(self.bike.s[1] + self.yrange)
-    
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        prog="test_BalancingRiderDrawing.py",
+        description="Test the 2D drawing of a BalancingRider bicycle following a parcours.",
+    )
+    return parser.parse_args()
+
 def main():
-    t_end = 15
+    parse_args()
+
+    t_end = 20
+
     scn = ParcoursScenario(animate=True)
     scn.run(t_end)
     scn.bike.drawing.set_animated(False)
+    scn.bike.plot_states()
+
+    plt.show(block=True)
 
 if __name__=="__main__":
     main()
