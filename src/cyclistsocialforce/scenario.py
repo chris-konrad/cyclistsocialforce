@@ -66,6 +66,7 @@ class Scenario:
         fname_animation_out = None,
         tempdir_animation = None,
         keep_animation_frames = False,
+        animation_dpi = 150,
     ):
         self.t = t_0
         self.t_s = t_s
@@ -83,7 +84,12 @@ class Scenario:
         self.fname_animation_out = fname_animation_out
         self.tempdir_animation = tempdir_animation
         self.keep_animation_frames = keep_animation_frames
-        
+
+        if write_animation:
+            if animation_dpi > 150:
+                    print(f"Warning: animation_dpi>150. Writing large videos can fail. Consider reducing figure size or dpi if running into issues.")
+        self.animation_dpi = animation_dpi
+
         self.verbose = verbose
 
         self.step_func = step_func
@@ -149,8 +155,8 @@ class Scenario:
                 fname = os.path.join(out_dir, self.fname_animation_out + '_f' + f'{self.i-1}'.zfill(n_zero_pad)+'.png')
                 
                 if self.i%2:
-                    self.fig.savefig(fname, transparent=True, dpi=300)
-                
+                    self.fig.savefig(fname, transparent=True, dpi=self.animation_dpi)
+
             self._assemble_animation_video(out_dir)
 
     def _step_blitting(self):
@@ -200,7 +206,8 @@ class Scenario:
         #create video writer object
         height, width, layers = cv2.imread(os.path.join(tempdir, image_files[0])).shape
         vid = cv2.VideoWriter(os.path.join(self.dir_animation_out, self.fname_animation_out+'.mp4'),
-                              cv2.VideoWriter_fourcc(*'mp4v'), 1/self.t_s, (width, height))
+                              cv2.VideoWriter_fourcc(*'mp4v'), 1/(2*self.t_s), (width, height))
+        
         
         #load individual frames and append to video
         for i in range(1, self.i_end):
@@ -208,10 +215,21 @@ class Scenario:
                 fname_i = self.fname_animation_out + '_f' + f'{i-1}'.zfill(n_zero_pad)+'.png'
                 
                 if fname_i not in image_files:
-                    msg = f'Did not find expected frame {i} in temporary directory {tempdir}.'
+                    msg = f'Error writing animation video. Did not find expected frame {i} in temporary directory {tempdir}.'
                     raise IOError(msg)
                     
                 frame = cv2.imread(os.path.join(tempdir, fname_i))
+                
+                if frame is None:
+                    raise IOError(f"Error writing animation video. Failed to read frame {i} from {fname_i}.")
+
+                h0, w0, _ = frame.shape
+                if not ((h0, w0) == (height, width)):
+                    raise IOError((f"Error writing animation video. Frame {i} has size {(h0, w0)}, " 
+                                   f"which is different from video size {(height, width)}."))
+                
+
+
                 vid.write(frame)
 
         vid.release()
