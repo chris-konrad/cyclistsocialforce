@@ -628,14 +628,14 @@ class BalancingRiderDrawing(VehicleDrawing):
 
         return x, y
 
-    def get_framepoly_params_sym(self, N, B, O, P_rwc, F_lam, frame_length, saddle_pole_length=0.6, bottom_bracket_dist=0.5, steer_col_bracket_length=0.1):
+    def get_framepoly_params_sym(self, N, B, O, P_rwc, F_lam, frame_length, saddle_pole_length=0.6, bottom_bracket_dist=0.5, steer_col_length=0.25):
 
         P_botbrkt = P_rwc.locatenew('s', bottom_bracket_dist * B.x)
         P_top = P_botbrkt.locatenew('s', - (saddle_pole_length - 0.1) * F_lam.z)
         P_saddle = P_botbrkt.locatenew('s', - (saddle_pole_length) * F_lam.z)
 
-        P_front_top = P_rwc.locatenew('s', frame_length * F_lam.x - steer_col_bracket_length/2 * F_lam.z)
-        P_front_bot = P_rwc.locatenew('s', frame_length * F_lam.x + steer_col_bracket_length/2 * F_lam.z)
+        P_front_top = P_rwc.locatenew('s', frame_length * F_lam.x - steer_col_length * F_lam.z)
+        P_front_bot = P_rwc.locatenew('s', frame_length * F_lam.x - .7 *steer_col_length * F_lam.z)
 
         r_rwc = P_rwc.pos_from(O)
         r_botbrkt = P_botbrkt.pos_from(O)
@@ -653,30 +653,89 @@ class BalancingRiderDrawing(VehicleDrawing):
               [r_botbrkt.dot(N.x), r_botbrkt.dot(N.y)],
               [r_rwc.dot(N.x), r_rwc.dot(N.y)]]
         
-        return xy
+        return xy, P_saddle, P_botbrkt
     
-    def get_steerpoly_params_sym(self, N, F, O, P_fwc, steer_col_length, steer_stem_length=0.2, handlebar_width=0.6):
+    def get_steerpoly_params_sym(self, N, F, O, P_fwc, steer_col_length, steer_stem_length=0.15, handlebar_width=0.6, handlebar_bend=35):
+
+        handlebar_bend = np.deg2rad(handlebar_bend)
+
+        HL = me.ReferenceFrame("HL")
+        HL.orient_axis(F, F.z, -handlebar_bend)
+
+        HR = me.ReferenceFrame("HR")
+        HR.orient_axis(F, F.z, handlebar_bend)
 
         P_steercol_top = P_fwc.locatenew('sct', - (steer_col_length+0.05) * F.z)
         P_handlbar_cnt = P_steercol_top.locatenew('hbc', steer_stem_length * F.x)
-        P_handlbar_lft = P_handlbar_cnt.locatenew('hbl', - handlebar_width/2 * F.y)
-        P_handlbar_rgt = P_handlbar_cnt.locatenew('hbr', handlebar_width/2 * F.y)
+        P_handlbar_lft0 = P_handlbar_cnt.locatenew('hbl0', -handlebar_width/4 * F.y)
+        P_handlbar_lft = P_handlbar_lft0.locatenew('hlb', -handlebar_width/4 * HL.y)
+        P_handlbar_rgt0 = P_handlbar_cnt.locatenew('hbr0', handlebar_width/4 * F.y)
+        P_handlbar_rgt = P_handlbar_rgt0.locatenew('hlr', handlebar_width/4 * HR.y)
 
-        r_fwc = P_fwc.pos_from(O)
-        r_steercol_top = P_steercol_top.pos_from(O)
-        r_handlbar_cnt = P_handlbar_cnt.pos_from(O)
-        r_handlbar_lft = P_handlbar_lft.pos_from(O)
-        r_handlbar_rgt = P_handlbar_rgt.pos_from(O)
-
-        xy = [[r_fwc.dot(N.x), r_fwc.dot(N.y)],
-              [r_steercol_top.dot(N.x), r_steercol_top.dot(N.y)],
-              [r_handlbar_cnt.dot(N.x), r_handlbar_cnt.dot(N.y)],
-              [r_handlbar_lft.dot(N.x), r_handlbar_lft.dot(N.y)],
-              [r_handlbar_rgt.dot(N.x), r_handlbar_rgt.dot(N.y)],
-              [r_handlbar_cnt.dot(N.x), r_handlbar_cnt.dot(N.y)],
-              [r_steercol_top.dot(N.x), r_steercol_top.dot(N.y)],]
+        xy = []
+        for P in [P_fwc, P_steercol_top, P_handlbar_cnt, P_handlbar_lft0, P_handlbar_lft, P_handlbar_lft0, P_handlbar_rgt0, P_handlbar_rgt, P_handlbar_rgt0, P_handlbar_cnt, P_steercol_top]:
+            r = P.pos_from(O)
+            xy.append([r.dot(N.x), r.dot(N.y)])
         
-        return xy
+        return xy, P_handlbar_lft, P_handlbar_rgt
+
+    def get_antropometry_from_proportions(self, height=None):
+        """Returns a dictionary of body measurements for drawing a human pictogram."""
+
+        if height is None:
+            height = 1.70
+
+        props = dict(
+            shoulder_width = 0.18 * height,
+            hip_width = 0.16 * height,
+            torso_length = 0.30 * height,
+            head_radius = 0.055 * height,
+            neck_length = 0.06 * height)
+        return props
+
+        
+    def get_riderpoly_params_sym(self, N, B, O, PS, P_handlebar_lft, P_handlebar_rgt, P_botbrkt, body_pitch_angle, height):
+
+        bodyprops = self.get_antropometry_from_proportions(height=height)
+
+        R = me.ReferenceFrame('R')
+        R.orient_axis(B, B.y, -body_pitch_angle)
+
+        #hip
+        HL = PS.locatenew('HL', - .5 * bodyprops['hip_width'] * R.y + 0.05 * B.x)
+        HR = PS.locatenew('HR', .5 * bodyprops['hip_width'] * R.y + 0.05 * B.x)
+
+        #neck and shoulder
+        NL = PS.locatenew('NL', - bodyprops['torso_length'] * R.z)
+        SL = NL.locatenew('SL', - .5 * bodyprops['shoulder_width'] * R.y + .2 * bodyprops['torso_length'] * B.x)
+        SR = NL.locatenew('SR', .5 * bodyprops['shoulder_width'] * R.y + .2 * bodyprops['torso_length'] * B.x)
+
+        #head
+        HC = NL.locatenew('HC', -bodyprops['neck_length'] * B.z + \
+                                -1/sm.sqrt(2) * bodyprops['head_radius'] * B.z + \
+                                bodyprops['head_radius'] * B.x)
+
+        #feet
+        FR = P_botbrkt.locatenew('FR', .45 * bodyprops['hip_width'] * R.y)
+        FL = P_botbrkt.locatenew('FL', - .45 * bodyprops['hip_width'] * R.y)
+
+        #knees
+        r = HL.pos_from(FL)
+        KL = FL.locatenew('KL', 0.7*r + 0.3*B.x)
+        r = HR.pos_from(FR)
+        KR = FR.locatenew('KR', 0.7*r + 0.3*B.x)
+
+        #project onto ground plane
+        xy_torso = []
+        for P in [PS, HL, KL, FL, KL, HL, SL, P_handlebar_lft, SL, NL, SR, P_handlebar_rgt, SR, HR, KR, FR, KR, HR]:
+            r = P.pos_from(O)
+            xy_torso.append([r.dot(N.x), r.dot(N.y)])
+
+        r_head = HC.pos_from(O)
+        xy_head = [r_head.dot(N.x), r_head.dot(N.y), 2*bodyprops['head_radius'], 2*bodyprops['head_radius'], 0]
+
+        return xy_torso, xy_head
+
 
     def make_keypoint_evaluators(self):
 
@@ -707,8 +766,10 @@ class BalancingRiderDrawing(VehicleDrawing):
         rw_params_sym = self.get_wheelelipse_params_sym(N, B, O, rwc, self.params.bicycleParameterDict['rR'])
         fw_params_sym = self.get_wheelelipse_params_sym(N, F, O, fwc, self.params.bicycleParameterDict['rF'])
 
-        frame_params_sym = self.get_framepoly_params_sym(N, B, O, rwc, F_lam, frame_length)
-        steer_params_sym = self.get_steerpoly_params_sym(N, F, O, fwc, 1.2 * steer_column_length)
+        frame_params_sym, P_saddle, P_botbrkt = self.get_framepoly_params_sym(N, B, O, rwc, F_lam, frame_length)
+        steer_params_sym, P_handlebar_lft, P_handlebar_rgt = self.get_steerpoly_params_sym(N, F, O, fwc, 2.2 * steer_column_length)
+
+        torso_params_sym, head_params_sym = self.get_riderpoly_params_sym(N, B, O, P_saddle, P_handlebar_lft, P_handlebar_rgt, P_botbrkt, np.deg2rad(25), 1.83)
 
         state_params = [px, py, psi, v, delta, phi]
 
@@ -716,6 +777,8 @@ class BalancingRiderDrawing(VehicleDrawing):
         self.eval_fw_params = sm.lambdify(state_params, fw_params_sym)
         self.eval_frame_params = sm.lambdify(state_params, frame_params_sym)
         self.eval_steer_params = sm.lambdify(state_params, steer_params_sym)
+        self.eval_torso_params = sm.lambdify(state_params, torso_params_sym)
+        self.eval_head_params = sm.lambdify(state_params, head_params_sym)
 
         if self.params.draw_frontwheel_trajectory:
             fw_contactpoint_sym = self.get_fw_contactpoint_sym(N, F, O, fwc, self.params.bicycleParameterDict['rF'])
@@ -741,10 +804,12 @@ class BalancingRiderDrawing(VehicleDrawing):
         """
 
         poly_keypoints = [np.array(self.eval_frame_params(*s[:6])),
-                          np.array(self.eval_steer_params(*s[:6]))]
+                          np.array(self.eval_steer_params(*s[:6])),
+                          np.array(self.eval_torso_params(*s[:6]))]
         
         ellipse_params = np.c_[np.array(self.eval_rw_params(*s[:6])), 
-                               np.array(self.eval_fw_params(*s[:6]))].T
+                               np.array(self.eval_fw_params(*s[:6])),
+                               np.array(self.eval_head_params(*s[:6]))].T
         ellipse_params[:,4] = np.rad2deg(ellipse_params[:,4])
         
         return poly_keypoints, ellipse_params
@@ -779,21 +844,36 @@ class BalancingRiderDrawing(VehicleDrawing):
             )
             self.ax.add_collection(self.ghandles["bike_polygons"])
 
-            self.ghandles["bike_ellipses"] = EllipseCollection(
-                ellipse_params[:,2],
-                ellipse_params[:,3],
-                ellipse_params[:,4],
-                offsets=ellipse_params[:,:2],
+            n_bike = 2
+            self.ghandles["wheel_ellipses"] = EllipseCollection(
+                ellipse_params[:n_bike,2],
+                ellipse_params[:n_bike,3],
+                ellipse_params[:n_bike,4],
+                offsets=ellipse_params[:n_bike,:2],
                 animated=self.params.animated,
-                facecolors=self.params.fcolors_riderbike_elli,
-                edgecolors=self.params.ecolors_riderbike_elli,
-                linewidths=dataunits_to_points(self.ax, self.params.ewidths_riderbike_elli),
+                facecolors=self.params.fcolors_riderbike_elli[:n_bike],
+                edgecolors=self.params.ecolors_riderbike_elli[:n_bike],
+                linewidths=dataunits_to_points(self.ax, self.params.ewidths_riderbike_elli[:n_bike]),
                 zorder=100,
                 transOffset = self.ax.transData,
                 units="xy"
-
             )
-            self.ax.add_collection(self.ghandles["bike_ellipses"])
+            self.ax.add_collection(self.ghandles["wheel_ellipses"])
+
+            self.ghandles["rider_ellipses"] = EllipseCollection(
+                ellipse_params[n_bike:,2],
+                ellipse_params[n_bike:,3],
+                ellipse_params[n_bike:,4],
+                offsets=ellipse_params[n_bike:,:2],
+                animated=self.params.animated,
+                facecolors=self.params.fcolors_riderbike_elli[n_bike:],
+                edgecolors=self.params.ecolors_riderbike_elli[n_bike:],
+                linewidths=dataunits_to_points(self.ax, self.params.ewidths_riderbike_elli[n_bike:]),
+                zorder=500,
+                transOffset = self.ax.transData,
+                units="xy"
+            )
+            self.ax.add_collection(self.ghandles["rider_ellipses"])
 
             if self.params.draw_frontwheel_trajectory:
                 x_fw, y_fw = self.eval_fw_contactpoint(*s[:6])
@@ -806,7 +886,8 @@ class BalancingRiderDrawing(VehicleDrawing):
                     y_fw,
                     color=self.params.traj_line_color,
                     linewidth=self.params.traj_line_width,
-                    animated=self.params.animated)
+                    animated=self.params.animated, 
+                    zorder=50)
                 self.ax.draw_artist(self.ghandles["trajectory_frontwheel"])
 
 
@@ -840,16 +921,23 @@ class BalancingRiderDrawing(VehicleDrawing):
 
         self.ghandles["bike_polygons"].set_verts(poly_points)
 
-        self.ghandles["bike_ellipses"].set_offsets(ellipse_params[:,:2])
-        self.ghandles["bike_ellipses"].set_widths(ellipse_params[:,2])
-        self.ghandles["bike_ellipses"].set_heights(ellipse_params[:,3])
-        self.ghandles["bike_ellipses"].set_angles(ellipse_params[:,4])
+        n_bike = 2
+        self.ghandles["wheel_ellipses"].set_offsets(ellipse_params[:n_bike,:2])
+        self.ghandles["wheel_ellipses"].set_widths(ellipse_params[:n_bike,2])
+        self.ghandles["wheel_ellipses"].set_heights(ellipse_params[:n_bike,3])
+        self.ghandles["wheel_ellipses"].set_angles(ellipse_params[:n_bike,4])
+
+        self.ghandles["rider_ellipses"].set_offsets(ellipse_params[n_bike:,:2])
+        self.ghandles["rider_ellipses"].set_widths(ellipse_params[n_bike:,2])
+        self.ghandles["rider_ellipses"].set_heights(ellipse_params[n_bike:,3])
+        self.ghandles["rider_ellipses"].set_angles(ellipse_params[n_bike:,4])
 
         if self.params.proj_3d:
             raise self.no3d_exception()
         else:
-            self.ax.draw_artist(self.ghandles["bike_ellipses"])
+            self.ax.draw_artist(self.ghandles["wheel_ellipses"])
             self.ax.draw_artist(self.ghandles["bike_polygons"])
+            self.ax.draw_artist(self.ghandles["rider_ellipses"])
             
         if self.params.draw_frontwheel_trajectory:
             x_fw, y_fw = self.eval_fw_contactpoint(*bike.s[:6])

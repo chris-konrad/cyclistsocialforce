@@ -198,6 +198,7 @@ class BalancingRiderDrawingParameters(VehicleDrawingParameters):
         rider_color_head=None,
         bike_thickness_wheels=0.03,
         bike_thickness_frame=0.05,
+        rider_thickness_arms=0.10,
         draw_frontwheel_trajectory=True,
         proj_3d=False,
         **kwargs,
@@ -235,6 +236,7 @@ class BalancingRiderDrawingParameters(VehicleDrawingParameters):
 
         self.ewidth_frame = bike_thickness_frame
         self.ewidth_wheel = bike_thickness_wheels
+        self.ewidth_arms = rider_thickness_arms
 
         self.init_riderbike_colors(
             bike_color_frame,
@@ -290,7 +292,7 @@ class BalancingRiderDrawingParameters(VehicleDrawingParameters):
             ]
 
         if rider_color_head is None:
-            rider_color_head = self.tud_colors.get("cyaan")
+            rider_color_head = 'black'
 
         self.bike_color_frame = bike_color_frame
         self.bike_color_wheels = bike_color_wheels
@@ -309,20 +311,18 @@ class BalancingRiderDrawingParameters(VehicleDrawingParameters):
         self.ecolors_riderbike_poly = [
             self.bike_color_frame,
             self.bike_color_frame,
-            #self.rider_color_body,
-            #self.rider_color_body,
-            #self.rider_color_body,
-            #self.rider_color_head,
+            self.rider_color_body
         ]
-        self.fcolors_riderbike_poly = ["none"] * 2
-        self.ewidths_riderbike_poly = [self.ewidth_frame, self.ewidth_frame]
+        self.fcolors_riderbike_poly = ["none", "none", self.rider_color_body]
+        self.ewidths_riderbike_poly = [self.ewidth_frame, self.ewidth_frame, self.ewidth_arms]
 
         self.ecolors_riderbike_elli = [
             self.bike_color_wheels,
             self.bike_color_wheels,
+            "none"
         ]
-        self.fcolors_riderbike_elli = ["none"] * 2
-        self.ewidths_riderbike_elli = [self.ewidth_wheel, self.ewidth_wheel]
+        self.fcolors_riderbike_elli = ["none", "none", self.rider_color_head]
+        self.ewidths_riderbike_elli = [self.ewidth_wheel, self.ewidth_wheel, 0]
 
 
 class BikeDrawing2DParameters(VehicleDrawingParameters):
