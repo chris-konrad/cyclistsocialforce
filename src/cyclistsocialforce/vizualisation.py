@@ -818,6 +818,8 @@ class BalancingRiderDrawing(VehicleDrawing):
                                np.array(self.eval_fw_params(*s[:6])),
                                np.array(self.eval_head_params(*s[:6]))].T
         ellipse_params[:,4] = np.rad2deg(ellipse_params[:,4])
+        if s[2] < 0:
+            ellipse_params[:,4] *= -1
         
         return poly_keypoints, ellipse_params
 
