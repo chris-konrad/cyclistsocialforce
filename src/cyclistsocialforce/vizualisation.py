@@ -191,7 +191,7 @@ class VehicleDrawing:
         """
         self.ghandles["name"] = self.ax.text(
             vehicle.s[0],
-            vehicle.s[1] + 1,
+            vehicle.s[1] + self.params.name_yoffset,
             vehicle.id,
             color=self.params.name_font_color,
             fontsize=self.params.name_font_size,
@@ -594,13 +594,16 @@ class BalancingRiderDrawing(VehicleDrawing):
 
         """
         if params is None:
-            params = self.PARAMS_CLASS(bike)
+            self.params = self.PARAMS_CLASS(bike)
+        else:
+            self.params = params
 
-        if params.draw_frontwheel_trajectory:
+        if self.params.draw_frontwheel_trajectory:
             self.traj_fw = np.zeros((2, bike.traj.shape[1]))
 
-        super().__init__(ax, bike, params=params)
         self.make_keypoint_evaluators()
+
+        super().__init__(ax, bike, params=params)
         self.make_bicycle_ploygon(bike.s)
 
     def no3d_exception(self):
@@ -771,8 +774,13 @@ class BalancingRiderDrawing(VehicleDrawing):
 
         torso_params_sym, head_params_sym = self.get_riderpoly_params_sym(N, B, O, P_saddle, P_handlebar_lft, P_handlebar_rgt, P_botbrkt, np.deg2rad(25), 1.83)
 
+        # get text position
+        y_max = sm.Max(head_params_sym[1], steer_params_sym[0][1], frame_params_sym[0][1]) + self.params.name_yoffset
+        xy_text = [head_params_sym[0], y_max]
+
         state_params = [px, py, psi, v, delta, phi]
 
+        self.eval_idpos_params = sm.lambdify(state_params, xy_text)
         self.eval_rw_params = sm.lambdify(state_params, rw_params_sym)
         self.eval_fw_params = sm.lambdify(state_params, fw_params_sym)
         self.eval_frame_params = sm.lambdify(state_params, frame_params_sym)
@@ -783,7 +791,6 @@ class BalancingRiderDrawing(VehicleDrawing):
         if self.params.draw_frontwheel_trajectory:
             fw_contactpoint_sym = self.get_fw_contactpoint_sym(N, F, O, fwc, self.params.bicycleParameterDict['rF'])
             self.eval_fw_contactpoint = sm.lambdify(state_params, fw_contactpoint_sym)
-
 
     def calc_keypoints(self, s):
         """Returns lists of keypoints for different 
@@ -890,6 +897,26 @@ class BalancingRiderDrawing(VehicleDrawing):
                     zorder=50)
                 self.ax.draw_artist(self.ghandles["trajectory_frontwheel"])
 
+    def make_name_drawing(self, bicycle):
+        """Draw the name of the vehicle.
+
+        Parameters
+        ----------
+        vehicle : cyclistsocialforce.vehicle
+            Any vehicle from the vehicle module
+        """
+        xy = self.eval_idpos_params(*bicycle.s[:6])
+        self.ghandles["name"] = self.ax.text(
+            xy[0], xy[1],
+            bicycle.id,
+            color=self.params.name_font_color,
+            fontsize=self.params.name_font_size,
+            animated=self.params.animated,
+            va='bottom',
+            ha='center',
+            zorder=1000,
+        )
+        self.ax.draw_artist(self.ghandles["name"])
 
     def update(self, bicycle, Fdest=None, Frep=None, Fres=None):
         """Updates all elements of the bicycle drawing.
@@ -901,6 +928,20 @@ class BalancingRiderDrawing(VehicleDrawing):
         """
         super().update(bicycle, Fdest=Fdest, Frep=Frep, Fres=Fres)
         self.update_bike_polygon(bicycle)
+
+
+    def update_name_drawing(self, bicycle):
+        """Update the drawing of the vehicle name
+
+        Parameters
+        ----------
+        bicycle : cyclistsocialforce.BalancingRiderBicycle
+            Any vehicle from the vehicle module
+        """
+        if self.params.draw_name:
+            xy = self.eval_idpos_params(*bicycle.s[:6])
+            self.ghandles["name"].set_position(xy)
+            self.ax.draw_artist(self.ghandles["name"])
 
 
     def update_bike_polygon(self, bike):

@@ -53,6 +53,7 @@ class VehicleDrawingParameters:
         traj_line_color=None,
         name_font_size=None,
         name_font_color=None,
+        name_yoffset=1.0,
     ):
         self.draw_force_resulting = draw_force_resulting
         self.draw_force_destination = draw_force_destination
@@ -76,9 +77,9 @@ class VehicleDrawingParameters:
         
         self.init_trajectory_style(traj_line_width, traj_line_color)
         
-        self.init_name_style(name_font_size, name_font_color)
+        self.init_name_style(name_yoffset, name_font_size, name_font_color)
         
-    def init_name_style(self, name_font_size=None, name_font_color=None):
+    def init_name_style(self, name_yoffset, name_font_size=None, name_font_color=None):
         
         if name_font_size is None:
             name_font_size = 8
@@ -87,6 +88,7 @@ class VehicleDrawingParameters:
 
         self.name_font_size = name_font_size
         self.name_font_color = name_font_color
+        self.name_yoffset = name_yoffset
         
     def init_trajectory_style(
         self, traj_line_width=None, traj_line_color=None
@@ -200,6 +202,7 @@ class BalancingRiderDrawingParameters(VehicleDrawingParameters):
         bike_thickness_frame=0.05,
         rider_thickness_arms=0.10,
         draw_frontwheel_trajectory=True,
+        name_yoffset=0.5,
         proj_3d=False,
         **kwargs,
     ):
@@ -227,6 +230,7 @@ class BalancingRiderDrawingParameters(VehicleDrawingParameters):
         None.
 
         """
+        kwargs['name_yoffset'] = name_yoffset
         super().__init__(**kwargs)
 
         self.bicycleParameterDict = bike.params.bp_params_set.parameters
