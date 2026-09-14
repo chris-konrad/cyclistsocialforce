@@ -24,7 +24,8 @@ dependencies = [
 	"datetime",
 	"sympy",
 	"pandas", 
-	"scikit-learn"
+	"scikit-learn",
+	"keyboard",
 ]
 
 [project.optional-dependencies]
