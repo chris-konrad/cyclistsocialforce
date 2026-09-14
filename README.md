@@ -1,11 +1,23 @@
 Cyclistsocialforce: Modified Social Forces for Cyclists with Realistic Dynamics in SUMO
 ==============================
 
-This is a working repostory for a package that implements a modified social force model for cyclists. Instead of accelerations, our social forces represent the preferred velocities of a cyclist to their destination and around obstacles. This allows to introduce a various controlled models of bicycle dynamics. The original social force model for pedestrians was introduced by Helbing and Molnár (1995). Our model uses the separation into tactical and operational behavior introduced by Twaddle (2017) and currently only addresses operational behaviour. 
+This working repository implements traffic simulation for cyclists with realistic bicycle dynamics. The development of this framework began for our contribution to the [2023 Bicycle and Motorcycle Dynamics Conference, 18-20 October 2023, Delft, Netherlands](https://dapp.orvium.io/deposits/649d4037c2c818c6824899bd/view) and became the central simulation framework for my PhD project at TU Delft. It allows to create custom cyclist traffic simulation scenarios for the development of cyclist models, runs stand-alone simulations with animation, and co-simulation with Eclipse SUMO.
 
-The model supports co-simulation with [Eclipse SUMO ](https://eclipse.dev/sumo/) via sumolib and the [TraCI](https://sumo.dlr.de/docs/TraCI.html)/[Libsumo](https://sumo.dlr.de/docs/Libsumo.html) interface.  
+### SUMO Co-Simulation
 
-The model is developed for our contribution to the [2023 Bicycle and Motorcycle Dynamics Conference, 18-20 October 2023, Delft, Netherlands](https://dapp.orvium.io/deposits/649d4037c2c818c6824899bd/view), in the context of my PhD project at TU Delft. 
+This package supports co-simulation with [Eclipse SUMO ](https://eclipse.dev/sumo/) via sumolib and the [TraCI](https://sumo.dlr.de/docs/TraCI.html)/[Libsumo](https://sumo.dlr.de/docs/Libsumo.html) interface. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the cyclistsocialforces takes over control. This uses our Cyclist Social Force (CSF) interaction model and the planar bicycle models `Bicycle` or `TwoDBicycle`. Check out `demo/demoCSFxSUMO.py` if you are interested cyclistsocialforces together with SUMO.
+
+<img width="489" height="225" alt="Example of a simulation scenario with SUMO and cyclistsocialforces running parallel." src="https://github.com/user-attachments/assets/026398b8-c571-4c4b-b762-8fa753637b96" />
+
+### Standalone Simulation
+
+This package comes with a versatile interface to build and simulate your own cyclist traffic simulation scenarios. Simply create a new child-class of `Scenario`, add a few bicycles, and define a step-function. Check out `demo/demo_parcours-scenario.py` for a simple introduction into building standalone simulations. I particularly use standalone scenarios to develop, calibrate, and test cyclist models. Our most advanced operational model, the **Balancing Rider** best runs in standalone simulations. Below are a few examples from my PhD research.
+
+<img width="360" height="180" alt="example_standalonesim_balancingrider-leftturntest" src="https://github.com/user-attachments/assets/6393f51d-1f94-4f30-a20e-ba3c9ecf2eb5" />
+<img width="240" height="180" alt="example_standalonesim_bmd2023" src="https://github.com/user-attachments/assets/951c6a3e-b813-4a24-8ba4-7dd550c4adc1" />
+<img width="260" height="180" alt="example_standalonesim_icsc2024" src="https://github.com/user-attachments/assets/40ad5021-c8bb-4caa-998d-88e421c6b7ab" />
+
+## Bicycle Dynamics and Rider Control
 
 With our publication [Stochastic Control Behavior of the Balancing Rider for Cycling Safety in Traffic Simulation](https://doi.org/10.31224/6107), we add a stochastic model of a human rider balancing a linear Carvallo-Whipple model (Meijaard et al, 2007) while following heading commands.
 
@@ -23,7 +35,11 @@ In total, we provide seven different cyclist models that describe bicycle and ri
 
 - `vehicle.PlanarBicycle`: Simple two-wheeler kinematics without wheel slip. (UNDER DEVELOPMENT)
 
-### Disclaimer
+## Cyclist Interaction Models
+
+Instead of accelerations, our social forces represent the preferred velocities of a cyclist to their destination and around obstacles. This allows to introduce a various controlled models of bicycle dynamics. The original social force model for pedestrians was introduced by Helbing and Molnár (1995). Our model uses the separation into tactical and operational behavior introduced by Twaddle (2017) and currently only addresses operational behaviour. 
+
+## Disclaimer
 
 The package is research code under development. This is the development branch. It may contain bugs and sections of unused or insensible code as well as undocumented features. Major changes to this package are planned for the time to come. A proper API documentation is still missing. Refer to the demos and example scenarios for examples how to use this model.
 
