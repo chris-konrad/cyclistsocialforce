@@ -1360,7 +1360,7 @@ class TwoDBicycle(Bicycle):
             assert isinstance(params, InvPendulumBicycleParameters)
             self.params = params
 
-        Bicycle.__init__(self, s0, id, route, saveForces, 0)
+        Bicycle.__init__(self, s0, id=id, route=route, saveForces=saveForces)
 
         self.speed_controller = PIDcontroller(
             self.params.k_p_v, 0, 0, self.params.t_s, isangle=False

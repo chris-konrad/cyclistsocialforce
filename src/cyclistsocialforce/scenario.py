@@ -45,6 +45,9 @@ if cfg.has_sumo:
     else:
         import traci
 
+class SUMOScenarioFinished(Exception):
+    pass
+
 class Scenario:
     
     #default writeout parameters
@@ -278,12 +281,14 @@ class Scenario:
                 self.dir_frames_out = None
 
 
-class SUMOScenario:
+class SUMOScenario(Scenario):
+    BICYCLE_TYPES = ("Bicycle", "TwoDBicycle", "InvPendulumBicycle", 'BalancingRiderBicycle')
+    
     def __init__(
         self,
         network_file,
         bicycle_type="Bicycle",
-        animate=False,
+        animate=True,
         t_s=0.01,
         run_time_factor=1.0,
         bicycle_drawing_kwargs={},
@@ -312,13 +317,13 @@ class SUMOScenario:
         if not cfg.has_sumo:
             raise cfg.SumoNotFoundError()
 
+        super().__init__(self._step, animate=animate)
         # time utilities
         self.hist_run_time = []
         self.run_time_factor = run_time_factor
         self.t_s = t_s
 
         # parse bicyle type
-        self.BICYCLE_TYPES = ("Bicycle", "TwoDBicycle", "InvPendulumBicycle", 'BalancingRiderBicycle')
         assert bicycle_type in self.BICYCLE_TYPES, (
             f"Parameter bicycle_type has to be any of "
             f"{self.BICYCLE_TYPES}, instead it was '{bicycle_type}'."
@@ -360,7 +365,6 @@ class SUMOScenario:
             if self.animate:
                 ax = self.fig.add_subplot(nrows, ncols, j)
                 j += 1
-
                 self.intersections.append(
                     SocialForceIntersection(
                         [],
@@ -372,12 +376,6 @@ class SUMOScenario:
                         bicycle_drawing_kwargs=bicycle_drawing_kwargs,
                     )
                 )
-                figManager = plt.get_current_fig_manager()
-                figManager.resize(960, 1080)
-                plt.show(block=False)
-                plt.pause(0.1)
-                self.fig_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
-                self.fig.canvas.blit(self.fig.bbox)
             else:
                 self.intersections.append(
                     SocialForceIntersection(
@@ -430,16 +428,16 @@ class SUMOScenario:
 
                 if self.bicycle_type == self.BICYCLE_TYPES[0]:
                     params = BicycleParameters(t_s=self.t_s)
-                    unew = Bicycle(s, i, route, params=params)
+                    unew = Bicycle(s, id=str(i), route=route, params=params)
                 elif self.bicycle_type == self.BICYCLE_TYPES[1]:
                     params = InvPendulumBicycleParameters(t_s=self.t_s)
-                    unew = TwoDBicycle(s, i, route, params=params)
+                    unew = TwoDBicycle(s, id=str(i), route=route, params=params)
                 elif self.bicycle_type == self.BICYCLE_TYPES[2]:
                     s.append(0.0)
                     params = InvPendulumBicycleParameters(t_s=self.t_s)
                     unew = InvPendulumBicycle(s, id=str(i), route=route, params=params)
                 elif self.bicycle_type == self.BICYCLE_TYPES[3]:
-                    s.append(0.0)
+                    s+=[0.0, 0.0, 0.0]
                     params = BalancingRiderBicycleParameters(t_s=self.t_s)
                     unew = BalancingRiderBicycle(s, id=str(i), route=route, params=params)
                 else:
@@ -449,8 +447,23 @@ class SUMOScenario:
                     )
                 ins.add_road_user(unew)
 
-    def _step(self, i):
+    def _init_animation(self):
+        self.ax = self.fig.get_axes()
+        figManager = plt.get_current_fig_manager()
+        figManager.resize(960, 1080)
+        plt.show(block=False)
+        plt.pause(0.1)
+        self.fig_bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+        self.fig.canvas.blit(self.fig.bbox)
+
+        if self.write_animation:
+            raise NotImplementedError("Writing Animations not implemented for SUMO Scenario.")
+
+    def _step(self):
         """Simulate a C-SFM step for all intersections in the scenario"""
+
+        if traci.simulation.getMinExpectedNumber() <= 0:
+            raise SUMOScenarioFinished("Simulation terminated after all vehicles left the network.")
 
         t = time()
 
@@ -462,7 +475,7 @@ class SUMOScenario:
         if self.animate:
             self.fig.canvas.restore_region(self.fig_bg)
         for ins in self.intersections:
-            ins._step()
+            ins.step()
         if self.animate:
             self.fig.canvas.blit(self.fig.bbox)
             self.fig.canvas.flush_events()
@@ -477,21 +490,17 @@ class SUMOScenario:
                 sleep(self.t_s * self.run_time_factor - dt)
         self.hist_run_time.append(time() - t)
 
-        if not self.animate:
-            return i + 1
 
-    def run(self, n_steps=None):
+    def run(self, t_end):
         """Run scenario simulation"""
 
         try:
-            i = 0
-            while traci.simulation.getMinExpectedNumber() > 0:
-                if i == n_steps:
-                    break
-                self._step(i)
-                i = i + 1
-        except Exception:
-            print(traceback.format_exc())
+            super().run(t_end)
+        except Exception as e:
+            if isinstance(e, SUMOScenarioFinished):
+                print(e)
+            else:
+                print(traceback.format_exc())
         finally:
             traci.close()
             sys.stdout.flush()
