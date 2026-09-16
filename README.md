@@ -88,16 +88,16 @@ Run demos as Python scripts from the command line. Check `--help` for configurat
 The package has two example scenarios in the `scenarios` that illustrate a newer, more straightforward way to build scenarios without SUMO based on a new more general `scenario` class.
 
 - `demo_parcours-scenario.py`: A single cyclists following a sequence of desired destinations.
-
 - `demo_curve-scenario.py`: A single cyclist following a curved road (featuring infrastructure forces)
 
 ### The Balancing Rider Model
 
-- `demo_BalancingRider-control-variability.py`: A demonstration of the path variability created by the distribution of control parameters of the Balancing Rider model. 
+- `demo_BalancingRider-control-variability.py`: A demonstration of the path variability created by the distribution of control parameters of the Balancing Rider model.
+- `demo\demo_BalancingRider-keyboard-control.py`: Control the balancing rider with the <-/-> arrows on your keyboard.
 
 ### Cyclist-Cyclist Interactions
 - `demo\demo_interaction.py`: A single crossing interaction of three cyclists using the social force model.
-
+  
 ### SUMO demos
 
 The package comes with two demos for SUMO co-simulation. The demos launch the SUMO GUI and create a small scenario of a three-legged intersection with random bicycle demand. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the social force model takes over control.  Movements are synchronized between SUMO and the social force model by using the TraCI interface. Switching to Libsumo is possible by uncommenting a config variable in the beginning of the script, but this will [prevent simulation with the SUMO GUI](https://sumo.dlr.de/docs/Libsumo.html#limitations).
