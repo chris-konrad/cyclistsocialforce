@@ -53,6 +53,7 @@ class VehicleDrawingParameters:
         traj_line_color=None,
         name_font_size=None,
         name_font_color=None,
+        name_yoffset=1.0,
     ):
         self.draw_force_resulting = draw_force_resulting
         self.draw_force_destination = draw_force_destination
@@ -76,9 +77,9 @@ class VehicleDrawingParameters:
         
         self.init_trajectory_style(traj_line_width, traj_line_color)
         
-        self.init_name_style(name_font_size, name_font_color)
+        self.init_name_style(name_yoffset, name_font_size, name_font_color)
         
-    def init_name_style(self, name_font_size=None, name_font_color=None):
+    def init_name_style(self, name_yoffset, name_font_size=None, name_font_color=None):
         
         if name_font_size is None:
             name_font_size = 8
@@ -87,6 +88,7 @@ class VehicleDrawingParameters:
 
         self.name_font_size = name_font_size
         self.name_font_color = name_font_color
+        self.name_yoffset = name_yoffset
         
     def init_trajectory_style(
         self, traj_line_width=None, traj_line_color=None
@@ -179,6 +181,152 @@ class VehicleDrawingParameters:
             or self.draw_forces_repulsive
             or self.draw_forces_resulting
         )
+
+
+class BalancingRiderDrawingParameters(VehicleDrawingParameters):
+    """Class storing and maintaining the parameters for a balancing rider bicycle drawing.
+
+    Parameters include colors,
+    To be used together with cyclistsocialforce.visualisation.BalancingRiderDrawing
+
+    """
+
+    def __init__(
+        self,
+        bike, 
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+        bike_thickness_wheels=0.03,
+        bike_thickness_frame=0.05,
+        rider_thickness_arms=0.10,
+        draw_frontwheel_trajectory=True,
+        name_yoffset=0.5,
+        proj_3d=False,
+        **kwargs,
+    ):
+        """Create a bicycle drawing parameters object.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+        proj3d : TYPE, optional
+            Prepares color lists for the 3D drawing instead of 2D.
+            The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
+        kwargs['name_yoffset'] = name_yoffset
+        super().__init__(**kwargs)
+
+        self.bicycleParameterDict = bike.params.bp_params_set.parameters
+
+        self.proj_3d = proj_3d
+        self.draw_frontwheel_trajectory = draw_frontwheel_trajectory
+
+        self.ewidth_frame = bike_thickness_frame
+        self.ewidth_wheel = bike_thickness_wheels
+        self.ewidth_arms = rider_thickness_arms
+
+        self.init_riderbike_colors(
+            bike_color_frame,
+            bike_color_wheels,
+            rider_color_body,
+            rider_color_head,
+        )
+        self.make_colorlists_riderbike()
+
+
+    def init_riderbike_colors(
+        self,
+        bike_color_frame=None,
+        bike_color_wheels=None,
+        rider_color_body=None,
+        rider_color_head=None,
+    ):
+        """Initializes the face and edge colors for the bike-rider polygon
+        including the roll indicator.
+
+
+        Parameters
+        ----------
+        bike_color_frame : color, optional
+            The default is TU Delft cyan.
+        bike_color_wheels : color, optional
+            The default is gray.
+        rider_color_body : color or list of colors, optional
+            The default is random sampling from all TU Delft colors. If
+            a list of colors is provided the body color is randomly sampled
+            from this list.
+        rider_color_head : color, optional
+            The default is TU Delft cyan.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        if bike_color_frame is None:
+            bike_color_frame = self.tud_colors.get("cyaan")
+        if bike_color_wheels is None:
+            bike_color_wheels = "gray"
+
+        if rider_color_body is None:
+            rider_color_body = self.tud_colors.get(
+                np.random.randint(0, len(self.tud_colors.colors))
+            )
+        elif isinstance(rider_color_body, list):
+            rider_color_body = rider_color_body[
+                np.random.randint(0, len(rider_color_body))
+            ]
+
+        if rider_color_head is None:
+            rider_color_head = 'black'
+
+        self.bike_color_frame = bike_color_frame
+        self.bike_color_wheels = bike_color_wheels
+        self.rider_color_body = rider_color_body
+        self.rider_color_head = rider_color_head
+
+    def make_colorlists_riderbike(self):
+        """Create the list of colors for the rider+bike polygons/ellipses.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.ecolors_riderbike_poly = [
+            self.bike_color_frame,
+            self.bike_color_frame,
+            self.rider_color_body
+        ]
+        self.fcolors_riderbike_poly = ["none", "none", self.rider_color_body]
+        self.ewidths_riderbike_poly = [self.ewidth_frame, self.ewidth_frame, self.ewidth_arms]
+
+        self.ecolors_riderbike_elli = [
+            self.bike_color_wheels,
+            self.bike_color_wheels,
+            "none"
+        ]
+        self.fcolors_riderbike_elli = ["none", "none", self.rider_color_head]
+        self.ewidths_riderbike_elli = [self.ewidth_wheel, self.ewidth_wheel, 0]
 
 
 class BikeDrawing2DParameters(VehicleDrawingParameters):
@@ -1257,7 +1405,7 @@ class BalancingRiderBicycleParameters(BicycleParameters):
             last update for updating the Balancing Rider control parameters. Only 
             used if stochastic_control_behavior is True. The default is 0.833 m/s, 
             corresponding to the 3 km/h speed range of the samples used for training
-            the pole models. 
+            the pole models. Negative values resamples the poles at every step.
         controlparam_polemodel_component : int, optional
             The Balancing Rider control model component (aka component of GMM pole model)
             used to extract the mean pole location. Only used if stochastic_control_behavior is False.

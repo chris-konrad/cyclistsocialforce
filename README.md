@@ -1,29 +1,58 @@
 Cyclistsocialforce: Modified Social Forces for Cyclists with Realistic Dynamics in SUMO
 ==============================
 
-This is a working repostory for a package that implements a modified social force model for cyclists. Instead of accelerations, our social forces represent the preferred velocities of a cyclist to their destination and around obstacles. This allows to introduce a various controlled models of bicycle dynamics. The original social force model for pedestrians was introduced by Helbing and Molnár (1995). Our model uses the separation into tactical and operational behavior introduced by Twaddle (2017) and currently only addresses operational behaviour. 
+This working repository implements traffic simulation for cyclists with realistic bicycle dynamics. The development of this framework began for our contribution to the [2023 Bicycle and Motorcycle Dynamics Conference, 18-20 October 2023, Delft, Netherlands](https://dapp.orvium.io/deposits/649d4037c2c818c6824899bd/view) and became the central simulation framework for my PhD project at TU Delft. It allows to create custom cyclist traffic simulation scenarios for the development of cyclist models, runs stand-alone simulations with animation, and co-simulation with Eclipse SUMO.
 
-The model supports co-simulation with [Eclipse SUMO ](https://eclipse.dev/sumo/) via sumolib and the [TraCI](https://sumo.dlr.de/docs/TraCI.html)/[Libsumo](https://sumo.dlr.de/docs/Libsumo.html) interface.  
+### SUMO Co-Simulation
 
-The model is developed for our contribution to the [2023 Bicycle and Motorcycle Dynamics Conference, 18-20 October 2023, Delft, Netherlands](https://dapp.orvium.io/deposits/649d4037c2c818c6824899bd/view), in the context of my PhD project at TU Delft. Refer to our conference proceedings preprint for more explanation. If you use this model in your research, please cite it as indicted below. 
+This package supports co-simulation with [Eclipse SUMO ](https://eclipse.dev/sumo/) via sumolib and the [TraCI](https://sumo.dlr.de/docs/TraCI.html)/[Libsumo](https://sumo.dlr.de/docs/Libsumo.html) interface. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the cyclistsocialforces takes over control. This uses our Cyclist Social Force (CSF) interaction model and the planar bicycle models `Bicycle` or `TwoDBicycle`. Check out `demo/demoCSFxSUMO.py` if you are interested cyclistsocialforces together with SUMO.
 
-We provide seven different cyclist models that describe bicycle and rider:
+<img width="489" height="225" alt="Example of a simulation scenario with SUMO and cyclistsocialforces running parallel." src="https://github.com/user-attachments/assets/026398b8-c571-4c4b-b762-8fa753637b96" />
+
+### Standalone Simulation
+
+This package comes with a versatile interface to build and simulate your own cyclist traffic simulation scenarios. Simply create a new child-class of `Scenario`, add a few bicycles, and define a step-function. Check out `demo/demo_parcours-scenario.py` for a simple introduction into building standalone simulations. I particularly use standalone scenarios to develop, calibrate, and test cyclist models. Our most advanced operational model, the **Balancing Rider** best runs in standalone simulations. Below are a few examples from my PhD research.
+
+<img width="360" height="180" alt="example_standalonesim_balancingrider-leftturntest" src="https://github.com/user-attachments/assets/6393f51d-1f94-4f30-a20e-ba3c9ecf2eb5" />
+<img width="240" height="180" alt="example_standalonesim_bmd2023" src="https://github.com/user-attachments/assets/951c6a3e-b813-4a24-8ba4-7dd550c4adc1" />
+<img width="260" height="180" alt="example_standalonesim_icsc2024" src="https://github.com/user-attachments/assets/40ad5021-c8bb-4caa-998d-88e421c6b7ab" />
+
+## Social Force Model
+
+Instead of accelerations, our social forces represent the preferred velocities of a cyclist to their destination and around obstacles. This allows to introduce a various controlled models of bicycle dynamics. The original social force model for pedestrians was introduced by Helbing and Molnár (1995). Our model uses the separation into tactical and operational behavior introduced by Twaddle (2017). 
+
+Check out our publication [Essential Bicycle Dynamics for Microscopic Traffic Simulation: An Example Using the Social Force Model](https://doi.org/10.59490/65a5124da90ad4aecf0ab147) for details. 
+
+## Bicycle Models
+
+We provide several bicycle models with different approaches to bicycle dynamics, rider control, path planning and repulsive for calculation. 
+
+Each model bases `vehicle.vehicle`, and provides the following functions:
+- `step()`: propagate the **bicycle dynamics** by one step given the resulting force (Fx, Fy).
+- `calcDestinationForce()`: calculate the force that attracts the cyclist to their (intermediate) destination. Represents the **path planning** of cyclists.
+- `calcRepulsiveForce()`: calculate the repulsive force that deflects cyclists from another. Represents the **interaction model**.
+
+In total, we provide seven different cyclist models:
 
 - `vehicle.Bicycle`: Simple two-wheeler kinematics without wheel slip and P controller as rider (Model from [v0.1.x](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v0.1.1-bmd2023extendedabstract)).
 
 - `vehicle.InvertedPendulumBicycle`: Two-Wheeler kinematics with an inverted pendulum on top to simulate bicycle roll. A nested control loop ensures that the bicycle stays upright while following the desired yaw angle given by the social force. Additionally, the model includes new repulsive force field shapes and path planning based destination forces. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
-- `vehicle.TwoDBicycle`: Same two-wheeler kinematics as `Bicycle`, but with the modified repulsive force fields and path planning of InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
+- `vehicle.TwoDBicycle`: Same two-wheeler kinematics as `Bicycle`, but with the modified repulsive force fields and the path planning of the InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
-- `vehicle.BalancingRiderBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) with full-state feedback control. Inherits path-planning and repulsive forces from `vehicle.TwoDBicycle`
+- `vehicle.BalancingRiderBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) and a stochastic model of human heading control added with our publication [Stochastic Control Behavior of the Balancing Rider for Cycling Safety in Traffic Simulation](https://doi.org/10.31224/6107). This is our most advanced operational model that describes the cyclist with physical accuracy. Currently still uses direct approach path planning and is not readily compatible with the repsulsive forces that we developed for the other models. Optimized path planning and validated interaction models for the Balancing Rider are coming! Introduced with [v.2.0.1](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v2.0.1)
+<p align="center">
+<img width="400" height="80" alt="example_balancingriderdynamics" src="https://github.com/user-attachments/assets/4563fee8-0698-47cc-ad8b-7eec4a40bf75" />
+</p>
 
-- `vehicle.PlanarPointBicycle`: A simple model of bicycle and rider as mass-less point in the 2D plane and full-state feedback control.
+- `vehicle.PlanarPointBicycle`: A simple model of bicycle and rider as mass-less point in the 2D plane and full-state feedback control. Baseline model for comparison with the Balancing Rider. 
 
 - `vehicle.PlanarBicycle`: Simple two-wheeler kinematics without wheel slip. (UNDER DEVELOPMENT)
 
-### Disclaimer
 
-The package is research code under development. This is the development branch. It may contain bugs and sections of unused or insensible code as well as undocumented features. Major changes to this package are planned for the time to come. A proper API documentation is still missing. Refer to the demos and example scenarios for examples how to use this model.
+## Disclaimer
+
+The package is research code under development. It may contain bugs and sections of unused or insensible code as well as undocumented features. Major changes to this package are planned for the time to come. A proper API documentation is still missing. Refer to the demos and example scenarios for examples how to use this model.
 
 ## Installation
 
@@ -35,58 +64,56 @@ The package is research code under development. This is the development branch. 
    git clone  https://github.com/chrismo-konrad/cyclistsocialforce.git
    ```
 
-3. Install the package and it's dependencies. Refer to `pyproject.toml` for an overview of the dependencies. 
+3. Install the package and it's dependencies. Refer to `pyproject.toml` for an overview of the dependencies. The following installs the package for stand-alone simulaitons.
    
    ```
    cd ./cyclistsocialforce
    pip install . 
    ```
 
+   If you want to use cyclistsocialforces with SUMO, additional dependencies are required. Choose between GUI-mode (using traci) `pip install .[sumo-gui]` and CLI- mode (using the faster libsumo) `pip install .[sumo-cli]`. 
+
 4. A few custom dependencies are not available as pypi packages and have to be installed manually. Follow the instructions from their github pages for installation.
    
    - [`pypaperutils`](https://github.com/chris-konrad/pypaperutils) for colours of the TU Delft color scheme
    
    - [`mypyutils`](https://github.com/chris-konrad/mypyutils) for some convenience functions
-   
-   - 
 
 ## Demos
 
-Additionally to the old demos (continue below), the package has two example scenarios in the `scenarios` that illustrate a newer, more straightforward way to build scenarios without SUMO based on a new more general `scenario` class.
+Demos of the functions of the package can be found in the `/demos/` directory. Currently, these are also the best way to learn usage and API.  
+Run demos as Python scripts from the command line. Check `--help` for configuration options.
 
-- Parcours: A single cyclists following a sequence of desired destinations.
+### Building Scenarios
+The package has two example scenarios in the `scenarios` that illustrate a newer, more straightforward way to build scenarios without SUMO based on a new more general `scenario` class.
 
-- Curve: A single cyclist following a curved road (featuring infrastructure forces)
+- `demo_parcours-scenario.py`: A single cyclists following a sequence of desired destinations.
+- `demo_curve-scenario.py`: A single cyclist following a curved road (featuring infrastructure forces)
 
-#### Old demos
+### The Balancing Rider Model
 
-The package comes with three demos. The first demo shows a simple interaction between three cyclists in open space. The script is pre-coded with an encroachment conflict and runs as a standalone without SUMO. Running the script produces an animation of the interaction and a plot of the vehicle states.  The second demo shows co-simulation of an intersection with SUMO. It launches the SUMO GUI and creates a small scenario of a three-legged intersection with random bicycle demand. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the social force model takes over control.  Movements are synchronized between SUMO and the social force model by using the TraCI interface. Switching toLibsumo is possible by uncomming a config variable in the beginning of the script, but this will [prevent simulation with the SUMO GUI](https://sumo.dlr.de/docs/Libsumo.html#limitations). A third demo simulates a larger SUMO scenario with four intersections. 
+- `demo_BalancingRider-control-variability.py`: A demonstration of the path variability created by the distribution of control parameters of the Balancing Rider model.
+- `demo\demo_BalancingRider-keyboard-control.py`: Control the balancing rider with the <-/-> arrows on your keyboard.
 
-**Running the demos:**
+### Cyclist-Cyclist Interactions
+- `demo\demo_interaction.py`: A single crossing interaction of three cyclists using the social force model.
+  
+### SUMO demos
 
-Switch to the demo directroy.
+The package comes with two demos for SUMO co-simulation. The demos launch the SUMO GUI and create a small scenario of a three-legged intersection with random bicycle demand. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the social force model takes over control.  Movements are synchronized between SUMO and the social force model by using the TraCI interface. Switching to Libsumo is possible by uncommenting a config variable in the beginning of the script, but this will [prevent simulation with the SUMO GUI](https://sumo.dlr.de/docs/Libsumo.html#limitations).
 
-```
-cd ./demo
-```
+**CAUTION:** All cyclist models work for co-simulation with SUMO, but only `vehicle.Bicycle` and `vehicle.TwoDBicycle` create stable results. Path planning is not optimized for the other models. 
 
-Run the standalone demo. Optionally set the `--save` flag to save a pdf of the potential and force plots to the `./demo/output/` folder. Set the `--model` flag  to run the demo with different bicycle models. Refer to the file header or `--help` for a list of available models. 
-
-```
-python demoCSFstandalone.py
-```
-
-Run the SUMO demos. After executing the line below, the SUMO GUI and matplotllib figure opens. To start the simulation, press the 'play' button in the SUMO GUI. To end it, press 'stop'. This uses the `vehicle.Bicycle` model. The inverted pendulum model currently not stable enough for crowed scenarios like this demos. 
-
-```
-python demoCSFxSUMO.py
-```
-
-Or: 
+**Run the SUMO demos**
+After executing the line below, the SUMO GUI and matplotllib figure opens. To start the simulation, press the 'play' button in the SUMO GUI. To end it, press 'stop'. This uses the `vehicle.Bicycle` model. The inverted pendulum model currently not stable enough for crowed scenarios like this demos. 
 
 ```
-python demoCSFxSUMO-large.py
+python demo_SUMO.py
 ```
+
+## Tests
+
+(Manual) test scripts for individual functions can be found in `/tests/`. `tests/tests.md` documents the tests. Tests scripts can also serve as demos for how to use the package.
 
 ## Authors
 
@@ -103,10 +130,13 @@ The bicycle parameters in `src/cyclistsocialforce/data/bicycleparams/` are deriv
 
 ## Citation
 
-If you use this model in your research, please cite it in your publications as:
+If you use this work in your research, please cite it in your publications as indicated below:
 
+**The cyclist social force model:**
 Schmidt, C., Dabiri, A., Schulte, F., Happee, R. & Moore, J. (2024). Essential Bicycle Dynamics for Microscopic Traffic Simulation: An Example Using the Social Force Model [version 2; peer reviewed]. *The Evolving Scholar - BMD 2023, 5th Edition*. https://doi.org/10.59490/65a5124da90ad4aecf0ab147
 
+**The Balancing Rider model:**
+Konrad, C. M., Happee, R., Moore, J. K., & Dabiri, A. (2025). Stochastic Control Behavior of the Balancing Rider for Cycling Safety in Traffic Simulation. Engineering Archive. https://doi.org/10.31224/6107
 
 ## Bibliography
 

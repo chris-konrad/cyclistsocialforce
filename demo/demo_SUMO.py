@@ -19,6 +19,8 @@ import os
 import argparse
 import numpy as np
 
+from pathlib import Path
+
 import cyclistsocialforce.config as cfg
 
 # Uncomment this to use libsumo instead of TraCI. Warning: Simulation will run
@@ -36,7 +38,7 @@ from cyclistsocialforce.scenario import SUMOScenario
 import matplotlib.pyplot as plt
 
 
-def generateRoutes():
+def generateRoutes(dir_demo):
     """Generate a route file for the demo scenario.
 
     A route file with random bicycle demand on the six routes of a three-legged
@@ -47,12 +49,12 @@ def generateRoutes():
     # inserted at a time step. Generates demand for a total of t seconds.
     t = 60
     r = 6
-    p = 5 / 9
+    p = 2 / 9
 
     rng = np.random.default_rng()
     demand = rng.binomial(1, p, size=(t, r))
 
-    fname_routefile = os.path.join(".", "config", "demoCSFxSUMO.rou.xml")
+    fname_routefile = os.path.join(dir_demo, "config", "demoCSFxSUMO.rou.xml")
 
     with open(fname_routefile, "w") as routefile:
         print(
@@ -84,6 +86,20 @@ def generateRoutes():
 
         print("</routes>", file=routefile)
 
+    return fname_routefile
+
+
+def warn_bicycletype(bicycle_type):
+
+    if bicycle_type == "InvPendulumBicycle":
+        input("\nWARNING: The InvPendulumBicycle is not well suited for SUMO co-simulation. "
+              "The bicycles are easily destabilized by the challenging scenario. Choose" 
+              "'Bicycle' for better results. Press any button to still continue... \n")
+    if bicycle_type == "BalancingRiderBicycle":
+        input("\nWARNING: The BalancingRiderBicycle is not well suited for SUMO co-simulation. "
+              "The currently implemented path planning does not account for the realistic bicycle " 
+              "dynamics described by the Balancing Rider Model. Additionally, the simulation runs slow." 
+              "Choose 'Bicycle' for better results. Press any button to still continue... \n")
 
 def main():
     """Run a demo of a CSFM-controlled SUMO intersection.
@@ -103,9 +119,14 @@ def main():
         "start and stop buttons of the SUMO-GUI "
         "to control the simulation."
     )
-    parser.parse_args()
+    parser.add_argument("-m", "--model", choices=SUMOScenario.BICYCLE_TYPES, default='Bicycle', 
+                        help=("The bicycle model to run. CAUTION: The scenario is designed "
+                              "for 'Bicycle'. Other models may not perform satisfactory."))
+    args = parser.parse_args()
+    dir_demo = Path(__file__).resolve().parent
 
-    assert "SUMO_HOME" in os.environ, (
+    if "SUMO_HOME" not in os.environ:
+        raise RuntimeError(
         "SUMO_HOME environment variable not set"
         "! See https://sumo.dlr.de/docs/"
         "Basics/Basic_Computer_Skills.html#"
@@ -117,15 +138,15 @@ def main():
     else:
         sumoBinary = sumolib.checkBinary("sumo-gui")
 
-    generateRoutes()
+    filepath_routes = generateRoutes(dir_demo)
     
     # bicycle drawing styles
     bicycle_drawing_kwargs = {"traj_line_width": 5}
 
     # set animate=True to show an animation of CSFM parallel to SUMO
     demo = SUMOScenario(
-        os.path.join(".", "config", "demoCSFxSUMO.net.xml"),
-        bicycle_type="Bicycle",
+        os.path.join(dir_demo, 'config', 'demoCSFxSUMO.net.xml'),
+        bicycle_type=args.model,
         animate=True,
         bicycle_drawing_kwargs = bicycle_drawing_kwargs,
     )
@@ -135,13 +156,13 @@ def main():
         [
             sumoBinary,
             "-c",
-            os.path.join(".", "config", "demoCSFxSUMO.sumocfg"),
+            os.path.join(dir_demo, "config", "demoCSFxSUMO.sumocfg"),
             "--step-length",
             "0.01",
         ]
     )
 
-    demo.run(n_steps=10000)
+    demo.run(100)
 
     # Uncomment this to show runtime measurment
     # demo.plot_runtime_vs_nvec()
