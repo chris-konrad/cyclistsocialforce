@@ -716,11 +716,12 @@ class Vehicle:
                 ax, self, params=self.DRAWING_TYPE.PARAMS_CLASS(*args, **kwargs)
             )
         else:
-            assert isinstance(drawing, self.DRAWING_TYPE), (
-                f"Provide a "
-                "{self.DRAWING_TYPE.__name__} object! Instead "
-                "you provided a {type(drawing)}."
-            )
+            if not isinstance(drawing, self.DRAWING_TYPE):
+                msg = (f"Provide a "
+                       f"{self.DRAWING_TYPE.__name__} object! Instead "
+                       f"you provided a {type(drawing)}.")
+                raise ValueError(msg)    
+            
             self.drawing = drawing
 
     def update_drawing(self, Fdest=None, Frep=None, Fres=None):
@@ -2116,3 +2117,6 @@ def calc_direct_approach_dest_force(Vehicle):
 
 def calc_spline_dest_force(x, y):
     pass
+
+
+
