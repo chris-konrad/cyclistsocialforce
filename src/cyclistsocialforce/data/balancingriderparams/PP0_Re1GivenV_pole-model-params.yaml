@@ -1,53 +1,47 @@
 gmm_data:
   covariance_type: full
   covariances:
-  - - - 1.0258986139983088
-      - 0.1996416346531511
-    - - 0.1996416346531511
-      - 0.9307918234336277
+  - - - 0.029912360874746843
+      - 0.046412420321102925
+    - - 0.046412420321102925
+      - 0.724825181684326
   k_crossval: 10
   means:
-  - - 0.007112177629769754
-    - 0.006024367067497574
+  - - 1.424599999042978
+    - 0.6223005050601613
   n_components: 1
   n_features: 2
-  n_samples_test: 31
-  n_samples_train: 123
+  n_samples_test: 28
+  n_samples_train: 116
   scores_test:
-    AIC: 7.00426448052154
-    BIC: 3.0042644805215426
-    NLL: 1.5021322402607713
+    AIC: 6.352358044608908
+    BIC: 2.3523580446089087
+    NLL: 1.1761790223044544
+    mace: 0.06353606789250354
   scores_val:
-    AIC: 6.808887898887599
-    BIC: 2.8088878988876
-    NLL: 1.4044439494438
+    AIC: 6.4795292007615135
+    BIC: 2.4795292007615144
+    NLL: 1.2397646003807572
   weights:
   - 1.0
 metadata:
-  data_created: '2025-11-25 12:35:15.193525'
+  data_created: '2026-08-29 09:09:53.408174'
 preprocessing_pipeline:
   log_transform: true
   log_transform_params:
     a:
-    - - 1.5892633741535083
+    - - 2.72032510709373
     log_transform_features:
     - 1
     sign:
     - - -1.0
-  normalize: true
+  normalize: false
   power_transform: yeo-johnson
   power_transform_params:
     lambdas:
-    - -0.091017781186249
-    - 1.2804412344106904
-  standard_scaler_params:
-    mean:
-    - 1.309668100772386
-    - 1.0271525113199182
-    n_samples_seen: 154
-    scale:
-    - 0.13815516948102777
-    - 0.8591505151317962
+    - 0.02571079213777509
+    - 0.9126637808807868
+  standard_scaler_params: {}
 presets:
   feature_set: Re1GivenV
   features:
