@@ -41,6 +41,9 @@ In total, we provide seven different cyclist models:
 - `vehicle.TwoDBicycle`: Same two-wheeler kinematics as `Bicycle`, but with the modified repulsive force fields and the path planning of the InvertedPendulumBicycle. Introduced with [v.1.1.0](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v1.1.0-bmd2023proceedingspaper)
 
 - `vehicle.BalancingRiderBicycle`: Fully three-dimensional bicycle dynamics using the linearized Whipple-Carvallo model (Meijaard et al., 2007) and a stochastic model of human heading control added with our publication [Stochastic Control Behavior of the Balancing Rider for Cycling Safety in Traffic Simulation](https://doi.org/10.31224/6107). This is our most advanced operational model that describes the cyclist with physical accuracy. Currently still uses direct approach path planning and is not readily compatible with the repsulsive forces that we developed for the other models. Optimized path planning and validated interaction models for the Balancing Rider are coming! Introduced with [v.2.0.1](https://github.com/chris-konrad/cyclistsocialforce/releases/tag/v2.0.1)
+<p align="center">
+<img width="400" height="80" alt="example_balancingriderdynamics" src="https://github.com/user-attachments/assets/4563fee8-0698-47cc-ad8b-7eec4a40bf75" />
+</p>
 
 - `vehicle.PlanarPointBicycle`: A simple model of bicycle and rider as mass-less point in the 2D plane and full-state feedback control. Baseline model for comparison with the Balancing Rider. 
 
@@ -85,16 +88,16 @@ Run demos as Python scripts from the command line. Check `--help` for configurat
 The package has two example scenarios in the `scenarios` that illustrate a newer, more straightforward way to build scenarios without SUMO based on a new more general `scenario` class.
 
 - `demo_parcours-scenario.py`: A single cyclists following a sequence of desired destinations.
-
 - `demo_curve-scenario.py`: A single cyclist following a curved road (featuring infrastructure forces)
 
 ### The Balancing Rider Model
 
-- `demo_BalancingRider-control-variability.py`: A demonstration of the path variability created by the distribution of control parameters of the Balancing Rider model. 
+- `demo_BalancingRider-control-variability.py`: A demonstration of the path variability created by the distribution of control parameters of the Balancing Rider model.
+- `demo\demo_BalancingRider-keyboard-control.py`: Control the balancing rider with the <-/-> arrows on your keyboard.
 
 ### Cyclist-Cyclist Interactions
 - `demo\demo_interaction.py`: A single crossing interaction of three cyclists using the social force model.
-
+  
 ### SUMO demos
 
 The package comes with two demos for SUMO co-simulation. The demos launch the SUMO GUI and create a small scenario of a three-legged intersection with random bicycle demand. On the road segments, cyclists are controlled by SUMO. As soon as cyclists enter the intersection area, the social force model takes over control.  Movements are synchronized between SUMO and the social force model by using the TraCI interface. Switching to Libsumo is possible by uncommenting a config variable in the beginning of the script, but this will [prevent simulation with the SUMO GUI](https://sumo.dlr.de/docs/Libsumo.html#limitations).
